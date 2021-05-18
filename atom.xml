@@ -1,0 +1,1892 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" xml:lang="zh-CN"><title type="text">ggguo</title><subtitle type="html">一个技术博客</subtitle><updated>2021-05-18T17:36:35+08:00</updated><id>https://blog.ggguo.cn/</id><link rel="alternate" type="text/html" href="https://blog.ggguo.cn/"/><link rel="self" type="application/atom+xml" href="https://blog.ggguo.cn/atom.xml"/><author><name>ggguo</name><uri>https://blog.ggguo.cn/</uri><email>guoyongsoft@163.com</email></author><rights>[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)</rights><generator uri="https://gohugo.io/" version="0.83.1">Hugo</generator><entry><title type="text">使用 Certbot 自动申请并续订阿里云 DNS 免费泛域名证书</title><link rel="alternate" type="text/html" href="https://blog.ggguo.cn/posts/jishu/%E4%BD%BF%E7%94%A8certbot%E7%94%B3%E8%AF%B7%E8%AF%81%E4%B9%A6/"/><id>https://blog.ggguo.cn/posts/jishu/%E4%BD%BF%E7%94%A8certbot%E7%94%B3%E8%AF%B7%E8%AF%81%E4%B9%A6/</id><updated>2021-05-18T17:36:34+08:00</updated><published>2021-03-29T14:43:00+08:00</published><author><name>ggguo</name><uri>https://ggguo.cn/</uri><email>guoyongsoft@163.com</email></author><rights>[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)</rights><summary type="html">使用 Certbot 自动申请并续订阿里云 DNS 免费泛域名证书</summary><content type="html">&lt;h1 id="使用-certbot-自动申请并续订阿里云-dns-免费泛域名证书">使用 Certbot 自动申请并续订阿里云 DNS 免费泛域名证书&lt;/h1>
+&lt;h2 id="背景">背景&lt;/h2>
+&lt;p>Certbot 支持自动申请 LetsEncrypt 的泛域名证书，但是官方插件不支持阿里云，在 GitHub 搜索发现已经有人写好了阿里云 DNS 插件，下面只需要进行简单的配置即可免费申请一个泛域名证书并自动续订。&lt;/p>
+&lt;h2 id="安装-certbot-和-certbot-dns-aliyun">安装 Certbot 和 certbot-dns-aliyun&lt;/h2>
+&lt;p>&lt;strong>本文基于 CentOS 7&lt;/strong>&lt;/p>
+&lt;ol>
+&lt;li>首先安装 Python 3&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-shell" data-lang="shell">yum install -y python36
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="2">
+&lt;li>创建并激活虚拟环境&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-shell" data-lang="shell">mkdir -p /mnt/certbot
+&lt;span class="nb">cd&lt;/span> /mnt/certbot
+python3 -m venv venv
+&lt;span class="nb">source&lt;/span> venv/bin/activate
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;ol start="3">
+&lt;li>安装 Certbot 和 certbot-dns-aliyun&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-shell" data-lang="shell">pip install certbot certbot-nginx certbot-dns-aliyun
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="申请并配置阿里云-dns-访问密钥">申请并配置阿里云 DNS 访问密钥&lt;/h2>
+&lt;p>前往 &lt;a href="https://ram.console.aliyun.com">https://ram.console.aliyun.com&lt;/a> 申请阿里云子账号并授予 AliyunDNSFullAccess 权限。然后为子账号创建 AccessKey 并记录。&lt;/p>
+&lt;p>创建 certbot-dns-aliyun 配置文件：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-shell" data-lang="shell">
+cat &amp;gt; /mnt/certbot/credentials.ini &lt;span class="s">&amp;lt;&amp;lt;EOF
+&lt;/span>&lt;span class="s">certbot_dns_aliyun:dns_aliyun_access_key = 12345678
+&lt;/span>&lt;span class="s">certbot_dns_aliyun:dns_aliyun_access_key_secret = 1234567890abcdef1234567890abcdef
+&lt;/span>&lt;span class="s">EOF&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>修改文件权限&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-shell" data-lang="shell">chmod &lt;span class="m">600&lt;/span> /mnt/certbot/credentials.ini
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="申请证书">申请证书&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-shell" data-lang="shell">/mnt/certbot/venv/bin/certbot certonly &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span>-a certbot-dns-aliyun:dns-aliyun &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span>--certbot-dns-aliyun:dns-aliyun-credentials /mnt/certbot/credentials.ini &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span>-d yourdomain.com &lt;span class="se">\
+&lt;/span>&lt;span class="se">&lt;/span>-d &lt;span class="s2">&amp;#34;*.yourdomain.com&amp;#34;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>&lt;strong>配置自动续订：&lt;/strong>&lt;/p>
+&lt;p>&lt;code>echo &amp;quot;0 0,12 * * * root python -c 'import random; import time; time.sleep(random.random() * 3600)' &amp;amp;&amp;amp; /mnt/certbot/venv/bin/certbot renew -q&amp;quot; | sudo tee -a /etc/crontab &amp;gt; /dev/null&lt;/code>&lt;/p>
+&lt;h2 id="配置-nginx">配置 nginx&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-nginx" data-lang="nginx">
+&lt;span class="k">cat&lt;/span> &lt;span class="s">&amp;gt;&lt;/span> &lt;span class="s">/etc/nginx/conf.d/nginx.header&lt;/span> &lt;span class="s">&amp;lt;&amp;lt;EOF`&lt;/span>
+&lt;span class="s">`listen&lt;/span> &lt;span class="mi">80&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="k">`&lt;/span>
+&lt;span class="s">`listen&lt;/span> &lt;span class="mi">443&lt;/span> &lt;span class="s">ssl&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="k">`&lt;/span>
+&lt;span class="s">`if&lt;/span> &lt;span class="s">(&lt;/span>&lt;span class="nv">$scheme&lt;/span> &lt;span class="s">!=&lt;/span> &lt;span class="s">https)&lt;/span> &lt;span class="p">{&lt;/span>&lt;span class="kn">`&lt;/span>
+&lt;span class="s">`rewrite&lt;/span> &lt;span class="s">^/(.*)&lt;/span> &lt;span class="s">https://&lt;/span>&lt;span class="nv">$server_name/$1&lt;/span> &lt;span class="s">permanent&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="kn">`&lt;/span>
+&lt;span class="s">`&lt;/span>&lt;span class="err">}&lt;/span>&lt;span class="s">`&lt;/span>
+&lt;span class="s">`ssl_certificate&lt;/span> &lt;span class="s">/etc/letsencrypt/live/yourdomain.com/fullchain.pem&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="kn">`&lt;/span>
+&lt;span class="s">`ssl_certificate_key&lt;/span> &lt;span class="s">/etc/letsencrypt/live/yourdomain.com/privkey.pem&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="kn">`&lt;/span>
+&lt;span class="s">`include&lt;/span> &lt;span class="s">/etc/letsencrypt/options-ssl-nginx.conf&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="kn">`&lt;/span>
+&lt;span class="s">`ssl_dhparam&lt;/span> &lt;span class="s">/etc/letsencrypt/ssl-dhparams.pem&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="kn">`&lt;/span>
+&lt;span class="s">`EOF`&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-nginx" data-lang="nginx">&lt;span class="k">cat&lt;/span> &lt;span class="s">&amp;gt;&lt;/span> &lt;span class="s">/etc/nginx/conf.d/yourdomain.com.conf&lt;/span> &lt;span class="s">&amp;lt;&amp;lt;EOF&lt;/span>
+&lt;span class="s">server&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kn">server_name&lt;/span> &lt;span class="s">yourdomain.com&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kn">include&lt;/span> &lt;span class="s">/etc/nginx/conf.d/nginx.header&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kn">location&lt;/span> &lt;span class="s">/&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;span class="kn">proxy_set_header&lt;/span> &lt;span class="s">Host&lt;/span> &lt;span class="nv">$host&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kn">proxy_set_header&lt;/span> &lt;span class="s">X-Real-IP&lt;/span> &lt;span class="nv">$remote_addr&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kn">proxy_set_header&lt;/span> &lt;span class="s">X-Forwarded-For&lt;/span> &lt;span class="nv">$proxy_add_x_forwarded_for&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kn">proxy_set_header&lt;/span> &lt;span class="s">X-Forwarded-Proto&lt;/span> &lt;span class="nv">$scheme&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="kn">proxy_pass&lt;/span> &lt;span class="s">http://127.0.0.1:8080&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="p">}&lt;/span>
+&lt;span class="k">EOF&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>————————————————
+本文转载自CSDN博主「tabsp」的原创文章，原文链接：https://blog.csdn.net/qq_16417621/article/details/105859886&lt;/p></content><category scheme="https://blog.ggguo.cn/categories/%E6%8A%80%E6%9C%AF/" term="技术" label="技术"/><category scheme="https://blog.ggguo.cn/tags/certbot/" term="Certbot " label="Certbot "/><category scheme="https://blog.ggguo.cn/tags/%E6%8A%80%E6%9C%AF/" term="技术" label="技术"/><category scheme="https://blog.ggguo.cn/tags/dns/" term="DNS " label="DNS "/></entry><entry><title type="text">Curator - 管理你的 Elasticsearch 索引</title><link rel="alternate" type="text/html" href="https://blog.ggguo.cn/posts/jishu/curator/"/><id>https://blog.ggguo.cn/posts/jishu/curator/</id><updated>2021-03-27T00:43:33+08:00</updated><published>2021-03-27T00:43:33+08:00</published><author><name>ggguo</name><uri>https://ggguo.cn/</uri><email>guoyongsoft@163.com</email></author><rights>[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)</rights><summary type="html">Curator - 管理你的 Elasticsearch 索引</summary><content type="html">&lt;h2 id="前言">前言&lt;/h2>
+&lt;ol>
+&lt;li>欢迎在文末留言，共同进步。&lt;/li>
+&lt;li>本文采用署名 - 非商业性使用 - 相同方式共享 4.0 国际 (CC BY-NC-SA 4.0) 许可协议，转载请注明出处！&lt;/li>
+&lt;/ol>
+&lt;h2 id="准备工作">准备工作&lt;/h2>
+&lt;p>我这里以 CentOS 7 为例来进行说明。&lt;/p>
+&lt;h3 id="安装">安装&lt;/h3>
+&lt;p>官方推荐最简单的安装方式就是使用 &lt;code>pip&lt;/code>，没错，这货是 &lt;code>python&lt;/code> 写的。&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>最简化安装的 CentOS，虽然自带了 &lt;code>python&lt;/code>，但是没有相关头文件，无法安装 &lt;code>pip&lt;/code>，干脆编译安装 &lt;code>python3&lt;/code>。既然要编译，先装个开发工具包再说&lt;/p>
+&lt;p>复制&lt;/p>
+&lt;pre>&lt;code>yum -y groupinstall 'Development Tools'
+&lt;/code>&lt;/pre>&lt;/li>
+&lt;li>
+&lt;p>编译 &lt;code>python3&lt;/code>，一定要注意 &lt;code>OpenSSL&lt;/code> 支持是不是启用了，否则后面没办法下载各种包了，还需要这些依赖，不安装会报错的（都是试错过后的总结，都是眼泪😢）&lt;/p>
+&lt;p>复制&lt;/p>
+&lt;pre>&lt;code>yum -y install openssl openssl-devel zlib zlib-devel libffi-devel
+&lt;/code>&lt;/pre>&lt;/li>
+&lt;li>
+&lt;p>下载 &lt;code>python3&lt;/code> 的源码包，然后解压编译并执行 &lt;code>configure&lt;/code>&lt;/p>
+&lt;p>复制&lt;/p>
+&lt;pre>&lt;code># 下载解压
+wget https://www.python.org/ftp/python/3.7.3/Python-3.7.3.tar.xz
+tar -Jxf Python-3.7.3.tar.xz
+cd Python-3.7.3/
+# 执行配置
+./configure
+&lt;/code>&lt;/pre>&lt;/li>
+&lt;li>
+&lt;p>执行完 &lt;code>configure&lt;/code> 后，注意看 &lt;code>OpenSSL&lt;/code> 支持是不是启用了。如图是成功启用的。
+&lt;a href="https://www.wdmcheng.cn/Curator-%E7%AE%A1%E7%90%86%E4%BD%A0%E7%9A%84Elasticsearch%E7%B4%A2%E5%BC%95/OpenSSL.png">&lt;img src="https://gitee.com/guoyongsoft/image/raw/master/img/20210326164046.png" alt="包含 OpenSSL 支持">&lt;/a>&lt;/p>
+&lt;p>&lt;a href="https://www.wdmcheng.cn/Curator-%E7%AE%A1%E7%90%86%E4%BD%A0%E7%9A%84Elasticsearch%E7%B4%A2%E5%BC%95/OpenSSL.png">包含 OpenSSL 支持&lt;/a>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>后面编译安装&lt;/p>
+&lt;p>复制&lt;/p>
+&lt;pre>&lt;code>make
+make install
+&lt;/code>&lt;/pre>&lt;/li>
+&lt;li>
+&lt;p>这个时候没有 &lt;code>pip&lt;/code> 命令，只有 &lt;code>pip3&lt;/code>。不用别名处理了，顺手更新一下 &lt;code>pip&lt;/code> 版本，也会自动安装 &lt;code>pip&lt;/code> 这个命令&lt;/p>
+&lt;p>复制&lt;/p>
+&lt;pre>&lt;code>pip3 install --upgrade pip
+&lt;/code>&lt;/pre>&lt;/li>
+&lt;li>
+&lt;p>进入正题，安装 &lt;code>curator&lt;/code>&lt;/p>
+&lt;p>复制&lt;/p>
+&lt;pre>&lt;code>pip3 install elasticsearch-curator
+&lt;/code>&lt;/pre>&lt;/li>
+&lt;/ol>
+&lt;h3 id="配置">配置&lt;/h3>
+&lt;ol>
+&lt;li>
+&lt;p>执行 &lt;code>curator&lt;/code> 命令时，默认读取的配置文件在 &lt;code>~/.curator/curator.yml&lt;/code>。创建配置文件，内容如下&lt;/p>
+&lt;p>复制&lt;/p>
+&lt;pre>&lt;code>---
+# Remember, leave a key empty if there is no value. None will be a string,
+# not a Python &amp;quot;NoneType&amp;quot;
+client:
+# ES 节点列表
+hosts:
+- 10.0.79.14
+- 10.0.79.22
+- 10.0.79.23
+- 10.0.79.24
+port: 9200
+url_prefix:
+use_ssl: False
+certificate:
+client_cert:
+client_key:
+ssl_no_validate: False
+http_auth: username:password
+timeout: 30
+master_only: False
+logging:
+loglevel: INFO
+# logfile 文件路径，一定要保证文件的父级文件夹存在
+logfile: /data/es-curator-log/es-curator.log
+logformat: default
+blacklist: ['elasticsearch', 'urllib3']
+&lt;/code>&lt;/pre>&lt;p>上面的 &lt;code>http_auth&lt;/code> 部分，是用户名和密码，用 &lt;code>:&lt;/code> 分隔。更多配置文件写法，参考 官方文档&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>创建任务文件，这里提供一个参考，内容如下。详细信息参考官方文档&lt;/p>
+&lt;p>复制&lt;/p>
+&lt;pre>&lt;code>---
+# Remember, leave a key empty if there is no value. None will be a string,
+# not a Python &amp;quot;NoneType&amp;quot;
+#
+# Also remember that all examples have 'disable_action' set to True. If you
+# want to use this action as a template, be sure to set this to False after
+# copying it.
+actions:
+1:
+action: delete_indices
+description: &amp;gt;-
+Delete indices older than 31 days (based on index name), for -pro- indices.
+删除31天之前的 -pro- 索引
+options:
+ignore_empty_list: True
+timeout_override: 300
+continue_if_exception: True
+disable_action: False
+filters:
+- filtertype: pattern
+kind: regex
+value: '.*-pro-.*'
+exclude:
+- filtertype: age
+source: name
+direction: older
+timestring: '%Y.%m.%d'
+unit: days
+unit_count: 31
+exclude:
+2:
+action: delete_indices
+description: &amp;gt;-
+Delete indices older than 7 days (based on index name), except -pro- indices.
+删除7天之前的非 -pro- 索引
+options:
+ignore_empty_list: True
+timeout_override: 300
+continue_if_exception: True
+disable_action: False
+filters:
+- filtertype: pattern
+kind: regex
+value: '.*-pro-.*'
+exclude: True
+- filtertype: age
+source: name
+direction: older
+timestring: '%Y.%m.%d'
+unit: days
+unit_count: 7
+exclude:
+3:
+action: delete_indices
+description: &amp;gt;-
+Delete indices older than 3 days (based on index name), for system indices.
+删除3天之前的系统索引
+options:
+ignore_empty_list: True
+timeout_override: 300
+continue_if_exception: True
+disable_action: False
+filters:
+- filtertype: pattern
+kind: regex
+value: '^\..*-.*'
+exclude:
+- filtertype: age
+source: name
+direction: older
+timestring: '%Y.%m.%d'
+unit: days
+unit_count: 3
+exclude:
+&lt;/code>&lt;/pre>&lt;/li>
+&lt;li>
+&lt;p>现在可以使用 &lt;code>--dry-run&lt;/code> 参数试运行测试一下（这个参数的作用就是不会真正的去执行，只是模拟）。&lt;code>--config ~/.curator/curator.yml&lt;/code> 可省略&lt;/p>
+&lt;p>复制&lt;/p>
+&lt;pre>&lt;code>curator --config ~/.curator/curator.yml --dry-run ~/delete_indecies.yml
+&lt;/code>&lt;/pre>&lt;/li>
+&lt;/ol>
+&lt;h3 id="配置定时任务">配置定时任务&lt;/h3>
+&lt;p>先说一下用法，后面再列几篇文章供参考&lt;/p>
+&lt;ol>
+&lt;li>执行 &lt;code>crontab -e&lt;/code>，会自动打开 &lt;code>vim&lt;/code> 编辑器&lt;/li>
+&lt;li>我这里是每隔 6 个小时执行一次，因此添加一行 &lt;code>0 0,6,12,18 * * * /usr/local/bin/curator ~/delete_indecies.yml&lt;/code>&lt;/li>
+&lt;li>保存后大功告成&lt;/li>
+&lt;/ol>
+&lt;h3 id="参考资料">参考资料&lt;/h3>
+&lt;ul>
+&lt;li>Curator 文档&lt;/li>
+&lt;li>crontab 参数解释&lt;/li>
+&lt;li>Linux 定时任务&lt;/li>
+&lt;/ul>
+&lt;p>------------- 本文结束感谢您的阅读 -------------&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>本文作者：&lt;/strong> 雾都迷城&lt;/li>
+&lt;li>&lt;strong>本文链接：&lt;/strong> &lt;a href="https://www.wdmcheng.cn/Curator-%E7%AE%A1%E7%90%86%E4%BD%A0%E7%9A%84Elasticsearch%E7%B4%A2%E5%BC%95/">https://www.wdmcheng.cn/Curator - 管理你的 Elasticsearch 索引 /&lt;/a>&lt;/li>
+&lt;li>&lt;strong>版权声明：&lt;/strong> 本博客所有文章除特别声明外，均采用 BY-NC-SA 许可协议。转载请注明出处！&lt;/li>
+&lt;/ul></content><category scheme="https://blog.ggguo.cn/categories/%E6%8A%80%E6%9C%AF/" term="技术" label="技术"/><category scheme="https://blog.ggguo.cn/tags/curator/" term="Curator" label="Curator"/><category scheme="https://blog.ggguo.cn/tags/%E6%8A%80%E6%9C%AF/" term="技术" label="技术"/><category scheme="https://blog.ggguo.cn/tags/elasticsearch/" term="Elasticsearch " label="Elasticsearch "/></entry><entry><title type="text">Hello</title><link rel="alternate" type="text/html" href="https://blog.ggguo.cn/posts/hello/"/><id>https://blog.ggguo.cn/posts/hello/</id><updated>2021-03-27T18:11:48+08:00</updated><published>2021-03-27T18:11:48+08:00</published><author><name>ggguo</name><uri>https://ggguo.cn/</uri><email>guoyongsoft@163.com</email></author><rights>[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)</rights><summary type="html">hello</summary><content type="html">&lt;h2 id="hello">hello&lt;/h2>
+&lt;h3 id="ddd">ddd&lt;/h3></content><category scheme="https://blog.ggguo.cn/categories/hello/" term="hello" label="hello"/><category scheme="https://blog.ggguo.cn/tags/hello/" term="hello" label="hello"/></entry><entry><title type="text">macOS 文件系统区分大小写的环境配置</title><link rel="alternate" type="text/html" href="https://blog.ggguo.cn/posts/jishu/mac/"/><id>https://blog.ggguo.cn/posts/jishu/mac/</id><updated>2017-08-31T15:43:48+08:00</updated><published>2017-08-31T15:43:48+08:00</published><author><name>ggguo</name><uri>https://ggguo.cn/</uri><email>guoyongsoft@163.com</email></author><rights>[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)</rights><summary type="html">macOS 文件系统区分大小写的环境配置</summary><content type="html">&lt;h1 id="macos-文件系统区分大小写的环境配置">macOS 文件系统区分大小写的环境配置&lt;/h1>
+&lt;h2 id="前言">前言&lt;/h2>
+&lt;ol>
+&lt;li>欢迎在文末留言，共同进步。&lt;/li>
+&lt;li>本文采用署名 - 非商业性使用 - 相同方式共享 4.0 国际 (CC BY-NC-SA 4.0) 许可协议，转载请注明出处！&lt;/li>
+&lt;/ol>
+&lt;h2 id="起因">起因&lt;/h2>
+&lt;p>macOS 的文件系统不区分大小写，但在开发编码的过程中，可能会下载到需要区分大小写的文件 ——Git 还可以通过配置控制一下，SVN 中出现这种问题的概率就不小了 —— 因此想要找到一个解决办法。&lt;/p>
+&lt;ol>
+&lt;li>如果将文件系统直接改成区分大小写的，又会有一些软件无法正常使用（譬如 Adobe 家的），所以不想自找麻烦。&lt;/li>
+&lt;li>如果对磁盘进行分区，分出一块空间专门用来开发，格式化为区分大小写的。这就会造成一定程度的磁盘空间浪费（不继续 Windows 的使用习惯了，就是不想分区），总是会很心疼的，毕竟 mac 的磁盘空间很贵。&lt;/li>
+&lt;/ol>
+&lt;h2 id="方案">方案&lt;/h2>
+&lt;p>后来了解到 mac 的稀疏磁盘映像 (sparseimage) 比较不错&lt;/p>
+&lt;ul>
+&lt;li>对映像文件的操作与 &lt;code>dmg&lt;/code> 格式相同&lt;/li>
+&lt;li>使用多少空间，其真实占用空间就是那么大，不会造成空间浪费。假设新建一个稀疏磁盘映像，大小为 50GB，里面存了 5GB 的代码，那么这个映像文件实际占用 5GB 存储空间&lt;/li>
+&lt;li>映像声明的空间不够了，还可以随时扩容。当然前提是你的物理磁盘装得下&lt;/li>
+&lt;li>性能几乎无损&lt;/li>
+&lt;li>需要备份、迁移代码库？零散文件的读写哪有单个文件快呀，直接复制磁盘映像，你的代码库就备份了&lt;/li>
+&lt;/ul>
+&lt;p>嗯，最后决定建一个稀疏磁盘映像，格式化成区分大小写的分区格式，来保存我的代码库&lt;/p>
+&lt;h2 id="实施">实施&lt;/h2>
+&lt;h3 id="建立磁盘映像">建立磁盘映像&lt;/h3>
+&lt;ol>
+&lt;li>
+&lt;p>打开磁盘工具，新建空白映像（图 1）&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>其中 &lt;code>存储为&lt;/code> 和 &lt;code>位置&lt;/code> 随意，我这里是 &lt;code>~/DevCaseSensitive.sparsebundle&lt;/code>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>下面的 &lt;code>名称&lt;/code> 定义的是分区名称，也就是磁盘的挂载点了&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>大小根据自身情况来填&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>格式我选的是 &lt;code>APFS（区分大小写）&lt;/code>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>分区就单个分区就行，选择 &lt;code>GUID 分区图&lt;/code>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>映像格式选择&lt;/p>
+&lt;pre>&lt;code>稀疏捆绑磁盘映像
+&lt;/code>&lt;/pre>&lt;p>&lt;img src="https://gitee.com/guoyongsoft/image/raw/master/img/20210326172409.png" alt="图1">&lt;/p>
+&lt;p>图1&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>然后就可以把代码都写入这个分区了，我这里的挂载点是 &lt;code>/Volumes/DevCaseSensitive&lt;/code>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>如果你有很多项目了，又懒得一个一个去处理，用软连接吧（先学会用，注意数据安全）&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>如果映像空间不够了，可以扩容的&lt;/p>
+&lt;ul>
+&lt;li>关闭所有使用该分区的程序&lt;/li>
+&lt;li>卸载该磁盘映像&lt;/li>
+&lt;li>使用 &lt;code>hdiutil resize -size 50g ~/DevCaseSensitive.sparseimage&lt;/code> 来修改大小&lt;/li>
+&lt;li>&lt;code>hdiutil attach ~/DevCaseSensitive.sparseimage&lt;/code> 重新挂载磁盘映像&lt;/li>
+&lt;li>使用命令行或者磁盘工具调整分区大小&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
+&lt;h3 id="开机自动挂载">开机自动挂载&lt;/h3>
+&lt;p>我在磁盘映像里还放了 IDE 工具（JetBrains 的 IntelliJ IDEA），而 JetBrains Toolbox 会开机自启。又由于 macOS 登录后的各程序启动都是并行的，没有先后顺序，因此不能直接将磁盘映像添加到登录项
+&lt;code>LaunchDaemons&lt;/code> 是在系统启动后就会执行，优先于登录项，因此这里采用这种机制&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>参考文章&lt;/p>
+&lt;ul>
+&lt;li>了解 LaunchDaemons&lt;/li>
+&lt;li>利用 Launchd 定制 Mac 启动任务&lt;/li>
+&lt;li>Mac OS 启动服务优化高级篇（launchd tuning）&lt;/li>
+&lt;li>Mac OSX 的开机启动配置&lt;/li>
+&lt;li>Daemons and Agents&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;code>LaunchAgents&lt;/code> 的目录都是登录项，不能用，&lt;code>/System/Library/LaunchDaemons&lt;/code> 是系统级的，一般不动，因此目录选择 &lt;code>/Library/LaunchDaemons&lt;/code>
+在 &lt;code>/Library/LaunchDaemons&lt;/code> 下新建文件 &lt;code>cn.wdmcheng.sparseimage-loader.plist&lt;/code>，内容如下（&lt;code>xxxxx&lt;/code> 是用户名）&lt;/p>
+&lt;p>复制&lt;/p>
+&lt;pre>&lt;code>&amp;lt;?xml version=&amp;quot;1.0&amp;quot; encoding=&amp;quot;UTF-8&amp;quot;?&amp;gt;
+&amp;lt;!DOCTYPE plist PUBLIC &amp;quot;-//Apple//DTD PLIST 1.0//EN&amp;quot; &amp;quot;http://www.apple.com/DTDs/PropertyList-1.0.dtd&amp;quot;&amp;gt;
+&amp;lt;plist version=&amp;quot;1.0&amp;quot;&amp;gt;
+&amp;lt;dict&amp;gt;
+&amp;lt;key&amp;gt;Label&amp;lt;/key&amp;gt;
+&amp;lt;string&amp;gt;cn.wdmcheng.sparseimage-loader&amp;lt;/string&amp;gt;
+&amp;lt;key&amp;gt;ProgramArguments&amp;lt;/key&amp;gt;
+&amp;lt;array&amp;gt;
+&amp;lt;string&amp;gt;hdiutil&amp;lt;/string&amp;gt;
+&amp;lt;string&amp;gt;attach&amp;lt;/string&amp;gt;
+&amp;lt;string&amp;gt;/Users/xxxxx/DevCaseSensitive.sparseimage&amp;lt;/string&amp;gt;
+&amp;lt;/array&amp;gt;
+&amp;lt;key&amp;gt;RunAtLoad&amp;lt;/key&amp;gt;
+&amp;lt;true/&amp;gt;
+&amp;lt;key&amp;gt;StandardErrorPath&amp;lt;/key&amp;gt;
+&amp;lt;string&amp;gt;/dev/null&amp;lt;/string&amp;gt;
+&amp;lt;key&amp;gt;StandardOutPath&amp;lt;/key&amp;gt;
+&amp;lt;string&amp;gt;/dev/null&amp;lt;/string&amp;gt;
+&amp;lt;/dict&amp;gt;
+&amp;lt;/plist&amp;gt;
+&lt;/code>&lt;/pre>&lt;/li>
+&lt;li>
+&lt;p>执行命令 &lt;code>launchctl load /Library/LaunchDaemons/cn.wdmcheng.sparseimage-loader.plist&lt;/code> 加载配置，重启即可生效&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h3 id="ide-配置">IDE 配置&lt;/h3>
+&lt;p>JetBrains 家的 IDE 需要配置一个属性，来指定使用区分大小写的模式
+在 IDE 的 JVM 参数上，增加 &lt;code>-Didea.case.sensitive.fs=true&lt;/code> 即可
+接下来就可以正常使用啦&lt;/p>
+&lt;p>------------- 本文结束感谢您的阅读 -------------&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>本文作者：&lt;/strong> 雾都迷城&lt;/li>
+&lt;li>&lt;strong>本文链接：&lt;/strong> &lt;a href="https://www.wdmcheng.cn/macOS%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E5%8C%BA%E5%88%86%E5%A4%A7%E5%B0%8F%E5%86%99%E7%9A%84%E7%8E%AF%E5%A2%83%E9%85%8D%E7%BD%AE/">https://www.wdmcheng.cn/macOS 文件系统区分大小写的环境配置 /&lt;/a>&lt;/li>
+&lt;li>&lt;strong>版权声明：&lt;/strong> 本博客所有文章除特别声明外，均采用 BY-NC-SA 许可协议。转载请注明出处！&lt;/li>
+&lt;/ul></content><category scheme="https://blog.ggguo.cn/categories/%E6%8A%80%E6%9C%AF/" term="技术" label="技术"/><category scheme="https://blog.ggguo.cn/tags/macos/" term="macOS " label="macOS "/><category scheme="https://blog.ggguo.cn/tags/%E6%8A%80%E6%9C%AF/" term="技术" label="技术"/></entry><entry><title type="text">明天要干的事儿</title><link rel="alternate" type="text/html" href="https://blog.ggguo.cn/posts/untitled/"/><id>https://blog.ggguo.cn/posts/untitled/</id><updated>2017-08-28T21:41:52+08:00</updated><published>2017-08-20T21:38:52+08:00</published><author><name>ggguo</name><uri>https://ggguo.cn/</uri><email>guoyongsoft@163.com</email></author><rights>[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)</rights><summary type="html">1 找全国了解 2 总结一下 3 调整模板</summary><content type="html">&lt;h2 id="1-找全国了解">1 找全国了解&lt;/h2>
+&lt;h2 id="2-总结一下">2 总结一下&lt;/h2>
+&lt;h2 id="3-调整模板">3 调整模板&lt;/h2></content></entry><entry><title type="text">5A</title><link rel="alternate" type="text/html" href="https://blog.ggguo.cn/posts/4a/4a/"/><id>https://blog.ggguo.cn/posts/4a/4a/</id><updated>2021-03-29T19:46:53+08:00</updated><published>2021-03-29T19:46:53+08:00</published><author><name>ggguo</name><uri>https://ggguo.cn/</uri><email>guoyongsoft@163.com</email></author><rights>[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)</rights><summary type="html">……</summary><content type="html">&lt;h1 id="企业5a平台建设">企业5A平台建设&lt;/h1>
+&lt;h2 id="什么是5a">什么是5A&lt;/h2>
+&lt;h2 id="为什么要用5a">为什么要用5A&lt;/h2>
+&lt;h2 id="5a解决了哪些问题">5A解决了哪些问题&lt;/h2>
+&lt;h2 id="企业现状">企业现状&lt;/h2>
+&lt;h2 id="5a平台建设步骤">5A平台建设步骤&lt;/h2>
+&lt;h3 id="poc">poc&lt;/h3>
+&lt;h3 id="信息收集摸底">信息收集/摸底&lt;/h3>
+&lt;h2 id="heading">&lt;/h2>
+&lt;h2 id="企业建设5a会遇到哪些问题">企业建设5A会遇到哪些问题&lt;/h2>
+&lt;h3 id="poc的问题">poc的问题&lt;/h3>
+&lt;ol>
+&lt;li>各方目标一致，视角统一，应着眼于内外部所有系统。&lt;/li>
+&lt;li>以公司利益至上，以解决实际问题为主。&lt;/li>
+&lt;li>POC的技术实现需符合业界标准的技术协议和技术规范。&lt;/li>
+&lt;/ol>
+&lt;h3 id="信息收集的问题">信息收集的问题&lt;/h3>
+&lt;ol>
+&lt;li>&lt;/li>
+&lt;/ol>
+&lt;h3 id="项目推进的问题">项目推进的问题&lt;/h3>
+&lt;h2 id="5a真的能给我们带来便利吗">5A真的能给我们带来便利吗？&lt;/h2>
+&lt;h2 id="反思">反思：&lt;/h2>
+&lt;ol>
+&lt;li>&lt;/li>
+&lt;li>&lt;/li>
+&lt;/ol>
+&lt;h2 id="参考链接">参考链接&lt;/h2>
+&lt;ol>
+&lt;li>&lt;a href="https://blog.authing.cn/blog/detail/121?category=1">基于 Authing 实现细粒度的权限管理&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://blog.authing.cn/blog/detail/19?category=1&amp;amp;page=5">走进身份管理&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://blog.authing.cn/blog/detail/135?category=2">一文读懂「认证」与「授权」&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://blog.authing.cn/blog/detail/72?category=2&amp;amp;page=3">标准化身份管理为什么重要?&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://www.authing.cn/blog/detail/80?category=3">身份管理构建 VS 购买指南&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://blog.authing.cn/blog/detail/32?category=1&amp;amp;page=3">一份所有人都能理解的关于 Authing 的介绍&lt;/a>&lt;/li>
+&lt;/ol></content><category scheme="https://blog.ggguo.cn/categories/5a/" term="5A" label="5A"/><category scheme="https://blog.ggguo.cn/tags/5a/" term="5A" label="5A"/></entry><entry><title type="text">阿里云常用服务</title><link rel="alternate" type="text/html" href="https://blog.ggguo.cn/posts/aliyun/"/><id>https://blog.ggguo.cn/posts/aliyun/</id><updated>2021-05-18T17:36:34+08:00</updated><published>2020-03-29T15:43:33+08:00</published><author><name>ggguo</name><uri>https://ggguo.cn/</uri><email>guoyongsoft@163.com</email></author><rights>[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)</rights><summary type="html">阿里云常用服务</summary><content type="html">&lt;h1 id="阿里云常用服务">阿里云常用服务&lt;/h1>
+&lt;p>文章出处：https://github.com/cdk8s/cdk8s-team-style&lt;/p>
+&lt;h2 id="只有上云才能撑住规模化后的发展">只有上云才能撑住规模化后的发展&lt;/h2>
+&lt;ul>
+&lt;li>初期技术选型上尽可能寻找云支持的&lt;/li>
+&lt;li>在公司规模小，自建服务基本都做不到 99.999% 高可用&lt;/li>
+&lt;li>在公司规模发展变迅速时，如果云技术和已有技术契合，迁移成本会低很多很多&lt;/li>
+&lt;li>目前暂定只选择：&lt;a href="https://www.aliyun.com/minisite/goods?userCode=v2zozyxz">阿里云服务&lt;/a>&lt;/li>
+&lt;li>这里罗列了阿里云常用的一些：&lt;a href="https://github.com/cdk8s/cdk8s-team-style/blob/master/ops/aliyun.md">产品&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;hr>
+&lt;h2 id="常用配置地址">常用配置地址&lt;/h2>
+&lt;ul>
+&lt;li>ECS服务器管理：&lt;a href="https://ecs.console.aliyun.com/#/server/region/%E6%89%80%E5%B1%9E%E5%9C%B0%E5%8C%BA">https://ecs.console.aliyun.com/#/server/region/所属地区&lt;/a>&lt;/li>
+&lt;li>安全组管理：&lt;a href="https://ecs.console.aliyun.com/#/securityGroup/region/%E6%89%80%E5%B1%9E%E5%9C%B0%E5%8C%BA">https://ecs.console.aliyun.com/#/securityGroup/region/所属地区&lt;/a>&lt;/li>
+&lt;li>RAM 访问控制：&lt;a href="https://ram.console.aliyun.com/overview">https://ram.console.aliyun.com/overview&lt;/a>&lt;/li>
+&lt;li>SSL证书：&lt;a href="https://yundun.console.aliyun.com/?p=cas">https://yundun.console.aliyun.com/?p=cas&lt;/a>&lt;/li>
+&lt;li>域名管理：&lt;a href="https://dc.console.aliyun.com">https://dc.console.aliyun.com&lt;/a>&lt;/li>
+&lt;li>DNS 解析：&lt;a href="https://dns.console.aliyun.com/#/dns/domainList">https://dns.console.aliyun.com/#/dns/domainList&lt;/a>&lt;/li>
+&lt;li>OSS bucket：&lt;a href="https://oss.console.aliyun.com/bucket">https://oss.console.aliyun.com/bucket&lt;/a>&lt;/li>
+&lt;li>短信服务：&lt;a href="https://dysms.console.aliyun.com">https://dysms.console.aliyun.com&lt;/a>&lt;/li>
+&lt;li>NAT网关：&lt;a href="https://vpc.console.aliyun.com/nat">https://vpc.console.aliyun.com/nat&lt;/a>&lt;/li>
+&lt;li>负载均衡：&lt;a href="https://slb.console.aliyun.com/slb/overview">https://slb.console.aliyun.com/slb/overview&lt;/a>&lt;/li>
+&lt;li>VPN网关：&lt;a href="https://vpc.console.aliyun.com/vpn">https://vpc.console.aliyun.com/vpn&lt;/a>&lt;/li>
+&lt;li>弹性公网IP：&lt;a href="https://vpc.console.aliyun.com/eip">https://vpc.console.aliyun.com/eip&lt;/a>&lt;/li>
+&lt;li>CDN：&amp;lt;&amp;gt;&lt;/li>
+&lt;/ul>
+&lt;hr>
+&lt;h2 id="对象存储-oss">对象存储 OSS&lt;/h2>
+&lt;ul>
+&lt;li>能用 OSS 的就不要用 NAS&lt;/li>
+&lt;li>基本上现在常见的图片、音视频等文件格式都可以存储到 OSS&lt;/li>
+&lt;li>对象存储 OSS &lt;a href="https://www.aliyun.com/product/oss">https://www.aliyun.com/product/oss&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://promotion.aliyun.com/ntms/ossedu6.html">阿里云 OSS 实用工具&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://help.aliyun.com/document_detail/44686.html">图片处理&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://help.aliyun.com/document_detail/99373.html">文档预览&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://help.aliyun.com/document_detail/99383.html">图片识别&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://help.aliyun.com/product/29932.html">视频点播&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://help.aliyun.com/document_detail/29951.html">视频直播&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://promotion.aliyun.com/ntms/act/shortvideo.html">短视频&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="人工智能">人工智能&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/antibot">爬虫风险管理&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://vision.aliyun.com/">视觉智能开放平台&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://ai.aliyun.com/nlp/nlpautoml">NLP自学习平台&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://ai.aliyun.com/nls/filetrans">录音文件识别&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://ai.aliyun.com/nls/trans">实时语音识别&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://help.aliyun.com/document_detail/148437.html">深度学习框架支持和&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://promotion.aliyun.com/ntms/act/video-content-create.html">视频内容分析&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://vision.aliyun.com/facebody">人脸人体&lt;/a>&lt;/li>
+&lt;li>&lt;a href="https://help.aliyun.com/document_detail/146692.html">文字识别&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="容器服务-ack">容器服务 ACK&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/kubernetes">https://www.aliyun.com/product/kubernetes&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云服务器-ecs">云服务器 ECS&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/ecs">https://www.aliyun.com/product/ecs&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="数据管理web-数据库管理终端">数据管理（Web 数据库管理终端）&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/dms">https://www.aliyun.com/product/dms&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云数据库rds-mysql-版">云数据库RDS MySQL 版&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/rds/mysql">https://www.aliyun.com/product/rds/mysql&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云数据库rds-postgresql-版">云数据库RDS PostgreSQL 版&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/rds/postgresql">https://www.aliyun.com/product/rds/postgresql&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="分布式关系型数据库服务-drds">分布式关系型数据库服务 DRDS&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/drds">https://www.aliyun.com/product/drds&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云数据库-polardb比-drds-优先">云数据库 POLARDB（比 DRDS 优先）&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/polardb">https://www.aliyun.com/product/polardb&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="时序时空数据库-tsdb">时序时空数据库 TSDB&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/hitsdb">https://www.aliyun.com/product/hitsdb&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="时序数据库-influxdb">时序数据库 InfluxDB&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/hitsdb_influxdb_pre">https://www.aliyun.com/product/hitsdb_influxdb_pre&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="时序数据库-prometheus">时序数据库 Prometheus&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/hitsdb_prometheus_pre">https://www.aliyun.com/product/hitsdb_prometheus_pre&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云数据库-hbase-版">云数据库 HBase 版&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://cn.aliyun.com/product/hbase">https://cn.aliyun.com/product/hbase&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云数据库-clickhouse">云数据库 ClickHouse&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/clickhouse">https://www.aliyun.com/product/clickhouse&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="阿里云--elasticsearch">阿里云 · Elasticsearch&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://data.aliyun.com/product/elasticsearch">https://data.aliyun.com/product/elasticsearch&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="数据管理-dms">数据管理 DMS&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/dms">https://www.aliyun.com/product/dms&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云数据库-hbase-版-1">云数据库 HBase 版&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://cn.aliyun.com/product/hbase">https://cn.aliyun.com/product/hbase&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="图数据库-gdb">图数据库 GDB&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/gdb">https://www.aliyun.com/product/gdb&lt;/a>&lt;/li>
+&lt;li>核心
+&lt;ul>
+&lt;li>支持 TinkerPop Gremlin 查询语言&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>场景：
+&lt;ul>
+&lt;li>构建复杂的社交网络系统&lt;/li>
+&lt;li>构建个人信用信息系统，欺诈检测场景&lt;/li>
+&lt;li>构建多维度电商场景，进行个性化推荐&lt;/li>
+&lt;li>构建数据高度连接的复杂知识图谱&lt;/li>
+&lt;li>构建网络IT拓扑图&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>集成
+&lt;ul>
+&lt;li>dataworks：基于dataworks，GDB支持从MySQL、ODPS、OTS等导入数据。提供了丰富的配置规则，支持表数据到图点、边数据的多种映射，包括导入自定义的常量字段等&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="云数据库-redis-版">云数据库 Redis 版&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/kvstore">https://www.aliyun.com/product/kvstore&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="安全加速-scdn">安全加速 SCDN&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/scdn">https://www.aliyun.com/product/scdn&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="cdn">CDN&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/cdn">https://www.aliyun.com/product/cdn&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="全站加速-dcdn">全站加速 DCDN&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/dcdn">https://www.aliyun.com/product/dcdn&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="负载均衡-slb">负载均衡 SLB&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/slb">https://www.aliyun.com/product/slb&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="日志服务-log">日志服务 LOG&lt;/h2>
+&lt;ul>
+&lt;li>
+&lt;p>支持 Kafka 写入&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>支持 Java log4j2、logback 写入&lt;/p>
+&lt;ul>
+&lt;li>&lt;a href="https://developer.aliyun.com/article/409045">https://developer.aliyun.com/article/409045&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="https://www.aliyun.com/product/sls">https://www.aliyun.com/product/sls&lt;/a>&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h2 id="数加--数据集成">数加 · 数据集成&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/cdp">https://www.aliyun.com/product/cdp&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="api网关">API网关&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/apigateway">https://www.aliyun.com/product/apigateway&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="quick-bi倾向于离线数据报表">Quick BI（倾向于离线数据报表）&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://data.aliyun.com/product/bi">https://data.aliyun.com/product/bi&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="datav数据可视化倾向于实时数据报表">DataV数据可视化（倾向于实时数据报表）&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://data.aliyun.com/visual/datav">https://data.aliyun.com/visual/datav&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="ddos高防ip">DDoS高防IP&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/ddos">https://www.aliyun.com/product/ddos&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云监控">云监控&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/jiankong">https://www.aliyun.com/product/jiankong&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="堡垒机">堡垒机&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/bastionhost">https://www.aliyun.com/product/bastionhost&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="爬虫风险管理">爬虫风险管理&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/antibot">https://www.aliyun.com/product/antibot&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="实时计算-flink">实时计算 Flink&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://data.aliyun.com/product/sc">https://data.aliyun.com/product/sc&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="开放搜索">开放搜索&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/opensearch">https://www.aliyun.com/product/opensearch&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="消息队列-rocketmq">消息队列 RocketMQ&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/rocketmq">https://www.aliyun.com/product/rocketmq&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="消息队列-amqprabbitmq">消息队列 AMQP(RabbitMQ)&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/amqp">https://www.aliyun.com/product/amqp&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="微消息队列-mqtt">微消息队列 MQTT&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/mq4iot">https://www.aliyun.com/product/mq4iot&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="消息队列-kafka">消息队列 Kafka&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/kafka">https://www.aliyun.com/product/kafka&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="消息服务-mns">消息服务 MNS&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/mns">https://www.aliyun.com/product/mns&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="数据传输服务-dts">数据传输服务 DTS&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/dts">https://www.aliyun.com/product/dts&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="容器服务-kubernetes-解决方案">容器服务-Kubernetes 解决方案&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/solution/kubernetes">https://www.aliyun.com/solution/kubernetes&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="企业级分布式应用服务-edas">企业级分布式应用服务 EDAS&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://cn.aliyun.com/product/edas">https://cn.aliyun.com/product/edas&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云效联合edas解决方案devops闭环整体架构">云效联合EDAS解决方案：DevOps闭环整体架构&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/solution/middleware/yunxiaoedas">https://www.aliyun.com/solution/middleware/yunxiaoedas&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="物联网平台">物联网平台&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/iot">https://www.aliyun.com/product/iot&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="物联网设备接入">物联网设备接入&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/iot-deviceconnect">https://www.aliyun.com/product/iot-deviceconnect&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="物联网设备管理">物联网设备管理&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/iot-devicemanagement">https://www.aliyun.com/product/iot-devicemanagement&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="物联网数据分析">物联网数据分析&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/iot-dataanalytics">https://www.aliyun.com/product/iot-dataanalytics&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="数据库备份dbs">数据库备份DBS&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/dbs">https://www.aliyun.com/product/dbs&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云效">云效&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/yunxiao">https://www.aliyun.com/product/yunxiao&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="移动研发平台">移动研发平台&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/solution/emas/index">https://www.aliyun.com/solution/emas/index&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="cloud-toolkit">Cloud Toolkit&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/cloudtoolkit">https://www.aliyun.com/product/cloudtoolkit&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="web应用托管服务">Web应用托管服务&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/webx">https://www.aliyun.com/product/webx&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="dragonwell-jdk">Dragonwell JDK&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/dragonwell">https://www.aliyun.com/product/dragonwell&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云效-代码托管">云效-代码托管&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://promotion.aliyun.com/ntms/act/code.html">https://promotion.aliyun.com/ntms/act/code.html&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云效-maven公共仓库">云效-Maven公共仓库&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://m.aliyun.com/markets/aliyun/ali-repo">https://m.aliyun.com/markets/aliyun/ali-repo&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="容器镜像服务-acr">容器镜像服务 ACR&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/acr">https://www.aliyun.com/product/acr&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云效-制品仓库">云效-制品仓库&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://m.aliyun.com/markets/aliyun/repo-manage">https://m.aliyun.com/markets/aliyun/repo-manage&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="codepipeline">CodePipeline&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/codepipeline">https://www.aliyun.com/product/codepipeline&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="nodejs-性能平台">Node.js 性能平台&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/nodejs">https://www.aliyun.com/product/nodejs&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="nodejs-模块仓库">Node.js 模块仓库&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://help.aliyun.com/document_detail/67306.html">https://help.aliyun.com/document_detail/67306.html&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="性能测试-pts">性能测试 PTS&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/pts">https://www.aliyun.com/product/pts&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="移动测试">移动测试&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/mqc">https://www.aliyun.com/product/mqc&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="云效-测试平台">云效-测试平台&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/yunxiao-testing">https://www.aliyun.com/product/yunxiao-testing&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="应用实时监控服务-arms">应用实时监控服务 ARMS&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/arms">https://www.aliyun.com/product/arms&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="链路追踪">链路追踪&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://www.aliyun.com/product/xtrace">https://www.aliyun.com/product/xtrace&lt;/a>&lt;/li>
+&lt;/ul>
+&lt;h2 id="devops-解决方案">DevOps 解决方案&lt;/h2>
+&lt;ul>
+&lt;li>&lt;a href="https://develop.aliyun.com/devops">https://develop.aliyun.com/devops&lt;/a>&lt;/li>
+&lt;/ul></content><category scheme="https://blog.ggguo.cn/categories/%E9%98%BF%E9%87%8C%E4%BA%91/" term="阿里云" label="阿里云"/><category scheme="https://blog.ggguo.cn/tags/%E9%98%BF%E9%87%8C%E4%BA%91/" term="阿里云" label="阿里云"/></entry><entry><title type="text">MemE主题</title><link rel="alternate" type="text/html" href="https://blog.ggguo.cn/posts/meme/"/><id>https://blog.ggguo.cn/posts/meme/</id><updated>2021-03-27T00:43:33+08:00</updated><published>2020-03-27T00:43:33+08:00</published><author><name>ggguo</name><uri>https://ggguo.cn/</uri><email>guoyongsoft@163.com</email></author><rights>[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)</rights><summary type="html">MemE主题</summary><content type="html">&lt;h2 id="简介">简介&lt;/h2>
+&lt;p>MemE 是一个强大且可高度定制的 &lt;a href="https://github.com/gohugoio/hugo">GoHugo&lt;/a> 博客主题，专为个人博客设计。MemE 主题专注于优雅、简约、现代，以及代码的正确性。同时，希望你将像欣赏一个模因一样欣赏 MemE，希望你将像分享一个模因一样分享 MemE，就像你的博客和文章所做的那样😝！&lt;/p>
+&lt;h2 id="预览">预览&lt;/h2>
+&lt;h3 id="浏览器支持">浏览器支持&lt;/h3>
+&lt;p>MemE 广泛地使用了 &lt;a href="https://developer.mozilla.org/en-US/docs/Web/CSS/Using_CSS_custom_properties">CSS 变量&lt;/a>和 &lt;a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/let">let 声明&lt;/a>。这些特性被以下浏览器所支持：&lt;/p>
+&lt;ul>
+&lt;li>Chrome 49+&lt;/li>
+&lt;li>Firefox 44+&lt;/li>
+&lt;li>Edge 15+&lt;/li>
+&lt;li>Opera 36+&lt;/li>
+&lt;li>Safari 10+&lt;/li>
+&lt;/ul>
+&lt;p>IE（Internet Explorer）浏览器不支持 CSS 变量。&lt;/p>
+&lt;h2 id="快速开始">快速开始&lt;/h2>
+&lt;p>&lt;a href="https://gohugo.io/getting-started/quick-start/">https://gohugo.io/getting-started/quick-start/&lt;/a>&lt;/p>
+&lt;h3 id="安装-hugoextended-扩展版">安装 Hugo（&lt;code>extended&lt;/code> 扩展版）&lt;/h3>
+&lt;p>对于 Arch Linux 的用户：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">~ $ sudo pacman -S hugo
+~ $ hugo new site blog
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>对于其它系统的用户，请查看：https://gohugo.io/getting-started/installing/&lt;/p>
+&lt;h3 id="安装-meme">安装 MemE&lt;/h3>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">~ $ &lt;span class="nb">cd&lt;/span> blog
+~/blog $ git init
+~/blog $ git submodule add --depth &lt;span class="m">1&lt;/span> https://github.com/reuixiy/hugo-theme-meme.git themes/meme
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="开始写作">开始写作&lt;/h3>
+&lt;ol>
+&lt;li>
+&lt;p>将 &lt;code>config.toml&lt;/code> 替换为&lt;a href="https://github.com/reuixiy/hugo-theme-meme/blob/master/config-examples/zh-cn/config.toml">示例配置&lt;/a>。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">~/blog $ rm config.toml &lt;span class="o">&amp;amp;&amp;amp;&lt;/span> cp themes/meme/config-examples/zh-cn/config.toml config.toml
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>新建一篇文章和一个关于页面：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">~/blog $ hugo new &lt;span class="s2">&amp;#34;posts/hello-world.md&amp;#34;&lt;/span>
+~/blog $ hugo new &lt;span class="s2">&amp;#34;about/_index.md&amp;#34;&lt;/span>
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>现在：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">~/blog $ hugo server -D
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;h2 id="定制-meme">定制 MemE&lt;/h2>
+&lt;p>MemE 通过 Hugo 管道实现使用 SCSS 生成 CSS，而非静态的 CSS 文件，同时提供一个 &lt;a href="https://github.com/reuixiy/hugo-theme-meme/blob/master/assets/scss/custom/_custom.scss">&lt;code>_custom.scss&lt;/code>&lt;/a> 文件以供用户定制。&lt;/p>
+&lt;p>直接新建一个 &lt;code>~/blog/assets/scss/custom/_custom.scss&lt;/code> 并将你自己的样式加入其中，就能覆盖主题的 &lt;code>~/blog/themes/meme/assets/scss/custom/_custom.scss&lt;/code> 文件，且其会正确地被应用。&lt;/p>
+&lt;p>事实上，在 Hugo 中你可以覆盖主题的任何模板，见这个非官方的镜像网页：&lt;a href="https://gohugobrasil.netlify.com/themes/customizing/">https://gohugobrasil.netlify.com/themes/customizing/&lt;/a>&lt;/p>
+&lt;h2 id="更新-meme">更新 MemE&lt;/h2>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">~/blog $ git submodule update --rebase --remote
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>如果失败了，请尝试：&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>删除 &lt;code>meme&lt;/code> 文件夹，比如&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">~/blog $ rm -rf themes/meme
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>重新克隆 MemE&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">~/blog $ git clone --depth &lt;span class="m">1&lt;/span> https://github.com/reuixiy/hugo-theme-meme.git themes/meme
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;p>&lt;strong>特别注意&lt;/strong>：MemE 主题有时会新增一些全新功能或一些毁灭改动，所以在你更新完后，请务必检查 &lt;a href="https://github.com/reuixiy/hugo-theme-meme/commits/master/config-examples">&lt;code>config.toml&lt;/code> 的改动历史&lt;/a>并将相应内容也更新！&lt;/p>
+&lt;ol start="3">
+&lt;li>
+&lt;p>当一个 git 项目包含子模块（submodule) 时，直接克隆下来的子模块目录里面是空的。&lt;/p>
+&lt;p>如果项目已经克隆到了本地，执行下面的步骤：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">git submodule init
+git submodule update
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;p>​ 或者在执行 &lt;code>git clone&lt;/code> 时加上 &lt;code>--recursive&lt;/code> 参数。它会自动初始化并更新每一个子模块。例如：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre class="chroma">&lt;code class="language-sh" data-lang="sh">git clone --recursive https://github.com/example/example.git
+&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="awesome-meme">Awesome MemE&lt;/h2>
+&lt;p>请看 &lt;a href="https://github.com/reuixiy/hugo-theme-meme/issues/2">#2&lt;/a>。&lt;/p>
+&lt;h2 id="支持的-front-matter">支持的 Front Matter&lt;/h2>
+&lt;p>请看 &lt;a href="https://github.com/reuixiy/hugo-theme-meme#supported-front-matter">https://github.com/reuixiy/hugo-theme-meme#supported-front-matter&lt;/a>。&lt;/p></content><category scheme="https://blog.ggguo.cn/categories/%E5%85%B6%E4%BB%96/" term="其他" label="其他"/><category scheme="https://blog.ggguo.cn/tags/%E5%85%B6%E4%BB%96/" term="其他" label="其他"/></entry><entry><title type="text"/><link rel="alternate" type="text/html" href="https://blog.ggguo.cn/posts/4a/%E6%89%AB%E7%A0%81%E7%99%BB%E5%BD%95%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E7%8E%B0/"/><id>https://blog.ggguo.cn/posts/4a/%E6%89%AB%E7%A0%81%E7%99%BB%E5%BD%95%E5%8E%9F%E7%90%86%E5%92%8C%E5%AE%9E%E7%8E%B0/</id><updated>2021-05-18T17:36:34+08:00</updated><published>0001-01-01T00:00:00+00:00</published><author><name>ggguo</name><uri>https://ggguo.cn/</uri><email>guoyongsoft@163.com</email></author><rights>[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh)</rights><summary type="html">&lt;p>title: &amp;quot;扫码登录原理和实现&amp;quot;
+date: 2021-03-29T19:46:53+08:00
+lastmod: 2021-03-29T19:46:53+08:00
+keywords: [ &amp;quot;5A&amp;quot;]
+tags: [ &amp;quot;5A&amp;quot;]
+categories: [&amp;quot;5A&amp;quot;]
+author: &amp;quot;ggguo,potaton&amp;quot;
+autoCollapseToc: true
+draft: false&lt;/p>……</summary><content type="html">&lt;p>title: &amp;quot;扫码登录原理和实现&amp;quot;
+date: 2021-03-29T19:46:53+08:00
+lastmod: 2021-03-29T19:46:53+08:00
+keywords: [ &amp;quot;5A&amp;quot;]
+tags: [ &amp;quot;5A&amp;quot;]
+categories: [&amp;quot;5A&amp;quot;]
+author: &amp;quot;ggguo,potaton&amp;quot;
+autoCollapseToc: true
+draft: false&lt;/p>
+&lt;h1 id="扫码登录实战系列">扫码登录实战系列&lt;/h1>
+&lt;h2 id="扫码登录实战系列-1-原理及流程设计">扫码登录实战系列 1: 原理及流程设计&lt;/h2>
+&lt;p>在开始所有内容之前，先看下最终的成果是怎样的。话不多说上代码：&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">startAppAuthScanning({
+onSuccess(userInfo) {
+localStorage.setItem('token', userInfo.token);
+}
+})
+&lt;/code>&lt;/pre>&lt;p>**我们要通过这五行代码，在 Web 实现一个完整的扫码登录表单！**且用户扫码授权之后会回调 onSuccess 函数，从而获取到用户信息。&lt;/p>
+&lt;p>我们将从原理到接口设计，再到实际编码，最后封装 SDK，实现一个完整且开发者友好的扫码登录模块。完整的代码在这里：https://github.com/liaochangjiang/scan-qrcode-demo&lt;/p>
+&lt;p>通过这篇文章文章，你可以学到：&lt;/p>
+&lt;ul>
+&lt;li>使用 jwt 完成用于登录、认证&lt;/li>
+&lt;li>了解完整的扫码登录流程&lt;/li>
+&lt;li>理解扫码登录本质&lt;/li>
+&lt;li>优秀的封装接口能力&lt;/li>
+&lt;/ul>
+&lt;h2 id="原理及流程设计">原理及流程设计&lt;/h2>
+&lt;p>首先，我们先尝试用一句话定义一下扫码登录的本质：扫码登录本质上是&lt;strong>请求登录方&lt;/strong>请求&lt;strong>已登录方&lt;/strong>将&lt;strong>登录凭证&lt;/strong>写入&lt;strong>特定媒介&lt;/strong>的过程。这里的请求登录方为 Web 端，已登录方为 APP 端，登录凭证可以是用户信息，也可以是换取用户信息的凭证，而特定媒介是某一张二维码。&lt;/p>
+&lt;p>具体的扫码登录流程大致如下：&lt;/p>
+&lt;ol>
+&lt;li>打开登录页面，展示一个二维码，同时轮询二维码状态(web)&lt;/li>
+&lt;li>打开APP扫描该二维码后，APP显示确认、取消按钮(app)&lt;/li>
+&lt;li>登录页面展示被扫描的用户头像等信息(web)&lt;/li>
+&lt;li>用户在APP上点击确认登录(app)&lt;/li>
+&lt;li>登录页面从轮询二维码状态得知用户已确认登录，并获取到登录凭证(web)&lt;/li>
+&lt;li>页面登录成功，并进入主应用程序页面(web)&lt;/li>
+&lt;/ol>
+&lt;p>整个过程中，一张特定二维码起到了连接请求登录方和已登录方桥梁的作用。而二维码本质上就是通过某种约定的编码方式将一段文本信息转换为一个能够被解码识别的图片，其本质就是一段文本信息。所以，我们可以将二维码 ID、创建时间、过期时间等信息写入二维码，APP 终端通过解码二维码信息（这是终端媒介具备的基础功能），就能够识别出此二维码。&lt;/p>
+&lt;p>在 Web 端，一般会有一个请求生成二维码的接口，此接口会返回二维码 ID 和二维码连接，ID 用于查询二维码最新状态，链接用于展示。&lt;/p>
+&lt;p>这样，Web 端和 APP 端就建立起了一个共识：二维码 ID。APP 端通过授权修改二维码状态，Web 端能通过轮询监听到二维码状态变化，并获取到登录凭证，从而完成登录。&lt;/p>
+&lt;p>再来详细分解一下，二维码一共具有哪些状态：&lt;/p>
+&lt;ul>
+&lt;li>未扫描&lt;/li>
+&lt;li>已扫描，等待用户确认&lt;/li>
+&lt;li>已扫描，用户同意授权&lt;/li>
+&lt;li>已扫描，用户取消授权&lt;/li>
+&lt;li>已过期&lt;/li>
+&lt;/ul>
+&lt;p>APP 可以修改二维码状态，一共会用到三个接口：&lt;/p>
+&lt;ul>
+&lt;li>确认已扫描&lt;/li>
+&lt;li>同意授权&lt;/li>
+&lt;li>取消授权&lt;/li>
+&lt;/ul>
+&lt;p>一旦 Web 端监听到二维码状态变成了&lt;strong>同意授权&lt;/strong>，登录就完成了。&lt;/p>
+&lt;p>APP 端请求这些接口时，需要带上登录凭证（这是显然的），后端接口能够从此判断同意授权的用户，从而将二维码 ID 和用户 ID 绑定起来。&lt;/p>
+&lt;p>现在我们应该很清楚该怎么做了，来总结一下需要提供哪些接口：&lt;/p>
+&lt;ul>
+&lt;li>二维码生成接口&lt;/li>
+&lt;li>二维码状态查询接口&lt;/li>
+&lt;li>标记二维码以扫描接口&lt;/li>
+&lt;li>同意授权接口&lt;/li>
+&lt;li>取消授权接口&lt;/li>
+&lt;/ul>
+&lt;p>下面开始实际的代码实现部分。&lt;/p>
+&lt;h2 id="扫码登录实战系列-2-后端接口实现">扫码登录实战系列 2: 后端接口实现&lt;/h2>
+&lt;p>技术栈：Node.JS + express + MongoDB&lt;/p>
+&lt;h3 id="构建工程">构建工程&lt;/h3>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">$ mkdir scan-qrcode-login &amp;amp;&amp;amp; cd scan-qrcode-login
+$ yarn init --yes
+$ yarn add express mongoose moment
+$ touch index.js
+&lt;/code>&lt;/pre>&lt;p>如果你还没有运行数据库，可以很快使用 docker 起一个：&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">docker run --name mongodb -p 27017:27017 -d mongodb
+&lt;/code>&lt;/pre>&lt;p>添加五个接口并开启数据库连接：&lt;/p>
+&lt;blockquote>
+&lt;p>这里监听了 mongoose. connection.once('open') 事件，当数据库连接建立时调用 app.listen()。&lt;/p>
+&lt;/blockquote>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">const express = require('express')
+const mongoose = require('mongoose');
+const bodyParser = require(&amp;quot;body-parser&amp;quot;)
+const cors = require('cors')
+const app = express()
+const port = 8888
+app.use(cors());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }))
+// 二维码生成接口
+app.get('/qrcode/gene', async (req, res) =&amp;gt; {
+})
+// 二维码状态查询接口
+app.get('/qrcode/check', async (req, res) =&amp;gt; {
+})
+// 标记二维码已扫描接口
+app.get('/qrcode/scanned', async (req, res) =&amp;gt; {
+})
+// 同意授权接口
+app.get('/qrcode/confirm', async (req, res) =&amp;gt; {
+})
+// 取消授权接口
+app.get('/qrcode/cancel', async (req, res) =&amp;gt; {
+})
+connect();
+function listen() {
+app.listen(port);
+console.log('Express app started on port ' + port);
+}
+function connect() {
+mongoose.connection
+.on('error', console.log)
+.on('disconnected', connect)
+.once('open', listen);
+return mongoose.connect('mongodb://localhost:27017/scan-qrcode', { keepAlive: 1, useNewUrlParser: true });
+}
+&lt;/code>&lt;/pre>&lt;p>我们将在下面马上来实现这五个接口。&lt;/p>
+&lt;h3 id="二维码生成接口">二维码生成接口&lt;/h3>
+&lt;p>GET qrcode/gene&lt;/p>
+&lt;p>前面说过二维码信息本质上就是一段文本信息，所以我们需要将一段特定信息写入进二维码。常见的方式有下面几种：&lt;/p>
+&lt;ul>
+&lt;li>直接将二维码的标志 ID、创建时间、到期时间等相关信息写进去，这样客户端扫码解析的时候，就能够直接获取二维码 ID。（还记得前面讲的吗？扫码登录关键点是让客户端和 Web 端对二维码 ID 达成共识。）&lt;/li>
+&lt;li>写入一个包含 ticket 的 url，可以通过此 ticket 获取二维码 ID。这有一个好处，比如说使用其他app扫描此二维码时，会访问该url地址，这个时候你就可以做一道重定向到其他你想让用户看到的地址。比如通过 UA 实现跳转 app store 引导用户下载。&lt;/li>
+&lt;/ul>
+&lt;h3 id="创建-model">创建 Model&lt;/h3>
+&lt;p>先创建两个 Model：User 和 QRCode。&lt;/p>
+&lt;p>&lt;img src="https://files.authing.co/authing-blog/photos/a0ae4c29-d6fc-4710-add9-f5c74c037e43.png" alt="img">&lt;/p>
+&lt;p>models/user.js:&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
+const UserSchema = new Schema({
+username: String,
+password: String,
+token: String
+})
+module.exports = mongoose.model('User', UserSchema);
+&lt;/code>&lt;/pre>&lt;p>models/qrcode.js:&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
+const QRCodeSchema = new Schema({
+_allreadyUsed: {
+type: Boolean,
+default: false
+},
+userId: {
+type: Schema.Types.ObjectId,
+ref: &amp;quot;User&amp;quot;
+},
+url: String,
+// 是否已经被扫码
+scanned: {
+type: Boolean,
+default: false
+},
+status: {
+type: Number,
+default: 0 // 0 - 未确认；1 - 确认授权；-1 - 取消授权
+},
+// 用来换 userInfo
+ticket: String,
+userInfo: {
+type: Object,
+default: {}
+},
+createdAt: {
+type: Date,
+default: Date.now
+},
+expireAt: {
+type: Date
+}
+});
+module.exports = mongoose.model('QRCode', QRCodeSchema);
+&lt;/code>&lt;/pre>&lt;p>models/index.js:&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">const UserModel = require(&amp;quot;./user&amp;quot;)
+const QRCodeModel = require(&amp;quot;./qrcode&amp;quot;)
+module.exports = {
+UserModel,
+QRCodeModel
+}
+&lt;/code>&lt;/pre>&lt;p>之后便可以在 index.js 中这样引入：&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">const { UserModel, QRCodeModel } = require(&amp;quot;./models&amp;quot;)
+&lt;/code>&lt;/pre>&lt;h3 id="编写接口">编写接口&lt;/h3>
+&lt;p>生成二维码用到 &lt;a href="https://github.com/soldair/node-qrcode">https://github.com/soldair/node-qrcode&lt;/a>这个库，使用 yarn 安装：&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">yarn add qrcode
+&lt;/code>&lt;/pre>&lt;p>代码很简单，主要分成几步：&lt;/p>
+&lt;ul>
+&lt;li>将二维码存入数据库&lt;/li>
+&lt;li>将 qrcodeData 转换成文本之后写入二维码&lt;/li>
+&lt;li>返回结果&lt;/li>
+&lt;/ul>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">const moment = require(&amp;quot;moment&amp;quot;)
+const QRCodeNode = require(&amp;quot;qrcode&amp;quot;);
+app.get('/qrcode/gene', async (req, res) =&amp;gt; {
+// 将二维码存入数据库
+const qrcode = new QRCodeModel({
+createdAt: Date.now(),
+expireAt: moment(Date.now()).add(120, 's').toDate(),
+})
+await qrcode.save()
+// 将 qrcodeData 转换成文本之后写入二维码
+let qrcodeData = {
+qrcodeId: qrcode._id,
+createdAt: qrcode.createdAt,
+expireAt: qrcode.expireAt,
+}
+const qrcodeUrl = await QRCodeNode.toDataURL(JSON.stringify(qrcodeData));
+// 返回结果
+res.send({
+code: 200,
+message: '生成二维码成功',
+data: {
+qrcodeId: qrcode._id,
+qrcodeUrl
+}
+})
+})
+&lt;/code>&lt;/pre>&lt;p>之后访问 http://localhost:8888/qrcode/gene，就能够得到请求结果了：&lt;/p>
+&lt;p>&lt;img src="https://files.authing.co/authing-blog/photos/c9d5b941-1221-4a73-85c8-d2737265da96.png" alt="img">&lt;/p>
+&lt;h3 id="二维码状态查询接口">二维码状态查询接口&lt;/h3>
+&lt;p>GET /qrcode/check?qrcodeId=xxxxx&lt;/p>
+&lt;p>代码很简单：这里只有几点说明一下。而这也是我想告诉大家的&lt;strong>接口设计最佳实践&lt;/strong>：&lt;/p>
+&lt;ul>
+&lt;li>这里将 scanned, expired, success, canceled 这些决定业务最终状态的结果计算出来，而不是只返回一个状态码，让前端自己去计算。&lt;/li>
+&lt;/ul>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">app.get('/qrcode/check', async (req, res) =&amp;gt; {
+const { qrcodeId } = req.query;
+const qrcode = await QRCodeModel.findOne({ _id: qrcodeId })
+if (!qrcode) {
+res.send({
+code: 2241,
+message: '二维码不存在',
+data: null
+})
+return
+}
+res.send({
+code: 200,
+message: '查询二维码状态成功',
+data: {
+qrcodeId,
+scanned: qrcode.scanned,
+expired: moment() &amp;gt;= moment(qrcode.expireAt),
+success: qrcode.status === 1,
+canceled: qrcode.status === -1,
+status: qrcode.status,
+userInfo: qrcode.userInfo,
+ticket: qrcode.ticket,
+}
+})
+})
+&lt;/code>&lt;/pre>&lt;h3 id="标记已扫描接口">标记已扫描接口&lt;/h3>
+&lt;p>POST /qrcode/scanned&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>Body 参数：&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;ul>
+&lt;li>qrcodeId: 二维码 ID&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;p>这个接口需要请求用户出于登录态，这一部分我们用 jwt 来实现。先实现两个 jwt 编码、解码的函数：&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">function generateToken(data, secret) {
+let iat = Math.floor(Date.now() / 1000);
+let exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 15; // 有效期 15 天
+let token = jwt.sign(
+{
+data,
+iat,
+exp,
+},
+secret,
+);
+return token
+}
+function decryptToken(token, secret) {
+try {
+token = token.replace('Bearer ', '')
+let res = jwt.verify(token, secret);
+return res;
+} catch (err) {
+return false;
+}
+}
+&lt;/code>&lt;/pre>&lt;p>再实现两个注册、登录函数：&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">app.post('/login', async (req, res) =&amp;gt; {
+const { username, password } = req.body
+const user = await UserModel.findOne({
+username,
+password
+})
+if (!user) {
+res.send({
+code: 403,
+message: '用户名密码不正确'
+})
+return
+}
+const token = generateToken({ userId: user._id, username, avatar: user.avatar }, &amp;quot;s3cret&amp;quot;)
+res.send({
+code: 200,
+message: '登录成功',
+data: {
+_id: user._id,
+username,
+token
+}
+})
+})
+app.post('/register', async (req, res) =&amp;gt; {
+const { username, password } = req.body
+if ((await UserModel.findOne({ username, password }))) {
+res.send({
+code: 500,
+message: '用户名已被注册'
+})
+return
+}
+const user = new UserModel({
+username,
+password,
+avatar: &amp;quot;https://usercontents.authing.cn/authing-avatar.png&amp;quot;
+})
+await user.save()
+res.send({
+code: 200,
+message: '注册成功'
+})
+})
+&lt;/code>&lt;/pre>&lt;p>打开任何 API 调试工具，模拟请求完成注册登录：&lt;/p>
+&lt;p>&lt;img src="https://files.authing.co/authing-blog/photos/ba7cc9f9-5fd6-4679-afdd-8d4cd0d6c127.png" alt="img">&lt;/p>
+&lt;p>&lt;img src="https://files.authing.co/authing-blog/photos/f3a19378-d801-41a6-918d-0820398007f1.png" alt="img">&lt;/p>
+&lt;p>返回的 token 就是我们的登录凭证啦！&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7InVzZXJJZCI6IjVlMDc4YmY1ODZhZTVkZGZhNWE5NWM2NSJ9LCJpYXQiOjE1Nzc1NTMwOTEsImV4cCI6MTU3ODg0OTA5MX0.I9utsawxekpOzW-SplXCGEChGCa_3lb3FH5gOmVd0qM
+&lt;/code>&lt;/pre>&lt;p>接下来，完成一个认证中间件，用户判断当前请求的用户是否已登录：&lt;/p>
+&lt;ul>
+&lt;li>
+&lt;p>从 authorization 请求头中获取 token&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>调用 decryptToken 尝试对此 token 进行解码&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;ul>
+&lt;li>如果成功：说明此 token 是系统签署的，标志此用于是处于登录态，可以继续执行下面的业务。&lt;/li>
+&lt;li>如果失败，直接调用 res.send 结束请求。&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">const authenticated = async (req, res, next) =&amp;gt; {
+const authorationToken = req.headers['authorization']
+const decoded = decryptToken(authorationToken, 's3cret')
+if (!decoded) {
+res.send({
+code: 403,
+message: '请先登录'
+})
+return
+}
+req.logged = true
+req.user = {
+userId: decoded.data.userId,
+username: decoded.data.username,
+avatar: decoded.data.avatar,
+token: authorationToken
+}
+await next()
+}
+&lt;/code>&lt;/pre>&lt;p>给/qrcode/scanned加上此中间件并完成两个操作：&lt;/p>
+&lt;ul>
+&lt;li>标记二维码 scanned 字段为 true&lt;/li>
+&lt;li>将用户名和头像保存至二维码的 userInfo 字段。这里只保存这两项，用于前端监控到用于已扫码时展示头像。参考微信 web 端扫码登录：&lt;/li>
+&lt;/ul>
+&lt;p>&lt;img src="https://files.authing.co/authing-blog/photos/f50fb67e-7a5c-4bd7-ae48-3ddfdd524837.png" alt="img">&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup"> const { qrcodeId } = req.body
+const qrcode = await QRCodeModel.findOne({ _id: qrcodeId })
+if (!qrcode) {
+res.send({
+code: 2241,
+message: '二维码不存在',
+data: null
+})
+return
+}
+await QRCodeModel.findOneAndUpdate({ _id: qrcodeId }, {
+scanned: true, userInfo: {
+username: req.user.username,
+avatar: req.user.avatar
+}
+})
+res.send({
+code: 200,
+message: '扫码成功'
+})
+})
+&lt;/code>&lt;/pre>&lt;h3 id="同意授权接口">同意授权接口&lt;/h3>
+&lt;ul>
+&lt;li>
+&lt;p>将二维码 status 改为 1&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>二维码 userInfo 写入用户的完整信息&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;ul>
+&lt;li>
+&lt;p>包含 token 和用户 id&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;ul>
+&lt;li>前端得到 token 后就可以完成跳转了&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ul>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">app.post('/qrcode/confirm', authenticated, async (req, res) =&amp;gt; {
+const { qrcodeId } = req.body
+const qrcode = await QRCodeModel.findOne({ _id: qrcodeId })
+if (!qrcode) {
+res.send({
+code: 2241,
+message: '二维码不存在',
+data: null
+})
+return
+}
+await QRCodeModel.findOneAndUpdate({ _id: qrcodeId }, {
+status: 1, userInfo: req.user
+})
+res.send({
+code: 200,
+message: '扫码成功'
+})
+})
+&lt;/code>&lt;/pre>&lt;h3 id="取消授权接口">取消授权接口&lt;/h3>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">app.post('/qrcode/cancel', async (req, res) =&amp;gt; {
+const { qrcodeId } = req.body
+const qrcode = await QRCodeModel.findOne({ _id: qrcodeId })
+if (!qrcode) {
+res.send({
+code: 2241,
+message: '二维码不存在',
+data: null
+})
+return
+}
+await QRCodeModel.findOneAndUpdate({ _id: qrcodeId }, {
+status: -1,
+})
+res.send({
+code: 200,
+message: '扫码成功'
+})
+})
+&lt;/code>&lt;/pre>&lt;h2 id="heading">&lt;/h2>
+&lt;h2 id="扫码登录实战系列-3-前端-sdk-封装">扫码登录实战系列 3: 前端 SDK 封装&lt;/h2>
+&lt;p>有了后端的接口，现在就具备了实现扫码登录的所需的一切了，只需要 web 端和 app 端调用即可。为了 web 端能够更方便地调用，我们接下来一步一步封装成 sdk。这也是我们文章最开头所展示的最终成果：&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">startAppAuthScanning({
+onSuccess(userInfo) {
+localStorage.setItem('token', userInfo.token);
+}
+})
+&lt;/code>&lt;/pre>&lt;p>我们一共要封装 4 个 API：&lt;/p>
+&lt;ul>
+&lt;li>geneQRCode 生成二维码&lt;/li>
+&lt;li>checkQRCodeStatus: 查询二维码状态&lt;/li>
+&lt;li>startPollingQRCodeStatus: 开始轮询&lt;/li>
+&lt;li>startAppAuthScanning: 对上述所有方法的封装，一键生成扫码登录组件&lt;/li>
+&lt;/ul>
+&lt;h3 id="geneqrcode">geneQRCode&lt;/h3>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">const host = &amp;quot;http://localhost:8888&amp;quot;
+function geneQRCode() {
+let url = `${host}/qrcode/gene`
+return axios.get(url).then(res =&amp;gt; {
+return res.data
+}).catch(err =&amp;gt; {
+return err
+});
+}
+&lt;/code>&lt;/pre>&lt;h3 id="checkqrcodestatus">checkQRCodeStatus&lt;/h3>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">// 检验微信二维码扫描状态
+function checkQRCodeStatus(qrcodeId) {
+let url = `${host}/qrcode/check?qrcodeId=${qrcodeId}`
+return axios.get(url).then(res =&amp;gt; {
+return res.data
+}).catch(err =&amp;gt; {
+return err
+});
+}
+&lt;/code>&lt;/pre>&lt;h3 id="startpollingqrcodestatus">startPollingQRCodeStatus&lt;/h3>
+&lt;p>先设计接口：采用注册回调函数的方式，一共有以下可用注册函数：&lt;/p>
+&lt;ul>
+&lt;li>onPollingStart，轮询开始时回调，回调参数 intervalNum 是 startInterval 返回的 interval id，可以调用 clearInterval 手动关闭轮询。&lt;/li>
+&lt;li>onResult：每次获取到最新二维码状态时都会回调。&lt;/li>
+&lt;li>onScanned：用户扫码时回调，只回调一次。&lt;/li>
+&lt;li>onSuccess：用户同意授权时回调，只回调一次，之后轮询结束。&lt;/li>
+&lt;li>onCancel：用户取消授权时回调，只回调一次，之后轮询结束。&lt;/li>
+&lt;li>onExpired：二维码过期时回调，只回调一次，之后轮询结束。&lt;/li>
+&lt;li>onError：每次获取二维码信息失败时回调，失败原因可能有二维码不存在等。&lt;/li>
+&lt;/ul>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">authing.startPollingQRCodeStatus({
+qrcodeId,
+interval: 1000,
+onPollingStart: (intervalNum) =&amp;gt; { },
+onResult: (res) =&amp;gt; { },
+onScanned: (userInfo) =&amp;gt; { },
+onSuccess: (userInfo) =&amp;gt; { },
+onCancel: () =&amp;gt; { },
+onExpired: () =&amp;gt; { },
+onError: (data) =&amp;gt; { }
+})
+&lt;/code>&lt;/pre>&lt;p>以下是具体实现：每当发生某事件时，判断一下是否有相应回调函数注册，如果有就调用回调函数。&lt;/p>
+&lt;blockquote>
+&lt;p>由于篇幅限制，这里就不对参数进行检验了。&lt;/p>
+&lt;/blockquote>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">function startPollingQRCodeStatus(options) {
+let { qrcodeId, interval = 800, onPollingStart, onResult, onScanned, onExpired, onSuccess, onCancel, onError } = options
+let intervalNum = 0
+let calledOnScanned = false
+let calledOnPoolingStart = false
+intervalNum = setInterval(() =&amp;gt; {
+// 开始轮询时回调 onPollingStart
+if (onPollingStart &amp;amp;&amp;amp; ! calledOnPoolingStart) {
+onPollingStart(intervalNum)
+calledOnPoolingStart = true
+}
+checkQRCodeStatus(qrcodeId).then(res =&amp;gt; {
+// 业务状态码 code = 200 表示成功查询到二维码状态
+if (res.code === 200) {
+// 每次获取到数据都回调 onResult 函数
+if (onResult) {
+onResult(res)
+}
+const data = res.data;
+// 第一次查询到已扫码状态，回调 onScanned
+if (data.scanned) {
+if (onScanned &amp;amp;&amp;amp; !calledOnScanned) {
+const { userInfo } = data
+onScanned(userInfo)
+calledOnScanned = true
+}
+}
+// 二维码过期，清除定时器
+if (data.expired) {
+clearInterval(intervalNum)
+if (onExpired) {
+onExpired()
+}
+}
+// 成功登录
+if (data.success) {
+clearInterval(intervalNum)
+const { ticket, userInfo } = data
+if (onSuccess) {
+onSuccess({
+ticket,
+userInfo
+})
+}
+}
+// 用户取消
+if (data.canceled) {
+clearInterval(intervalNum)
+if (onCancel) {
+onCancel()
+}
+}
+} else {
+// 业务状态码不为 200，可能是由于二维码不存在等原因
+if (onError) {
+onError(res)
+}
+}
+})
+}, interval)
+return intervalNum
+}
+&lt;/code>&lt;/pre>&lt;h3 id="startappauthscanning">startAppAuthScanning&lt;/h3>
+&lt;p>先设计 API：&lt;/p>
+&lt;ul>
+&lt;li>mount：可选，二维码挂载点，如不写则默认漂浮在文档中间&lt;/li>
+&lt;li>interval：轮询间隔时间。&lt;/li>
+&lt;li>onPollingStart 到 onError 和 startPollingQRCodeStatus 意义一致，事实上这部分就是直接调用的 startPollingQRCodeStatus。&lt;/li>
+&lt;li>onQRCodeLoad：二维码首次成功加载时回调。参数 qrcode 是一个字典，包含两个字段：qrcodeId、qrcodeUrl。&lt;/li>
+&lt;li>onQRCodeShow：二维码首次出现在页面上时回调。参数 qrcode 同上。&lt;/li>
+&lt;li>onQRCodeLoadFaild：二维码加载失败时会被回调。&lt;/li>
+&lt;li>其余的是一些自定义文字展示&lt;/li>
+&lt;/ul>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">startAppAuthScanning({
+mount: '', // 可选，二维码挂载点，如不写则默认漂浮在文档中间
+interval: 1000, // 可选，轮询间隔时间，默认为 800 ms
+onPollingStart: (intervalNum) =&amp;gt; {},
+onResult: (res) =&amp;gt; {},
+onScanned: (userInfo) =&amp;gt; {},
+onSuccess: (data) =&amp;gt; {
+const { ticket, userInfo } = data;
+},
+onCancel: () =&amp;gt; {},
+onExpired: () =&amp;gt; {},
+onError: (data) =&amp;gt; {},
+onQRCodeShow: (qrcode) =&amp;gt; {},
+onQRCodeLoad: (qrcode) =&amp;gt; {},
+onQRCodeLoadFaild: (error) =&amp;gt; {},
+tips: '使用 &amp;lt;strong&amp;gt; APP &amp;lt;/strong&amp;gt; 扫码登录',
+scannedTips: '用户已扫码，等待确认',
+canceledTips: '用户取消授权',
+expiredTips: '二维码已过期',
+successTips: '扫码成功',
+retryTips: '重试',
+failedTips: '网络出错，请重试'
+})
+&lt;/code>&lt;/pre>&lt;p>这个方法是以上所有方法的封装，主要逻辑如下：&lt;/p>
+&lt;ul>
+&lt;li>调用 geneQRCode 生成二维码&lt;/li>
+&lt;li>在浏览器文档中展示二维码&lt;/li>
+&lt;li>调用 startPollingQRCodeStatus 开始轮询&lt;/li>
+&lt;li>发生相应事件的时候调用注册的回调函数&lt;/li>
+&lt;/ul>
+&lt;p>具体实现如下：&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">function startAppAuthScanning(options) {
+let { mount = &amp;quot;authing__app-scan-qrcode-root-node&amp;quot;, interval = 800,
+onPollingStart, onResult, onScanned, onExpired, onSuccess, onCancel, onError, onQRCodeShow, onQRCodeLoad,
+onQRCodeLoadFaild,
+tips = &amp;quot;使用 &amp;lt;strong&amp;gt; APP &amp;lt;/strong&amp;gt; 扫码登录&amp;quot;,
+scannedTips = &amp;quot;用户已扫码，等待确认&amp;quot;,
+canceledTips = &amp;quot;用户取消授权&amp;quot;,
+expiredTips = &amp;quot;二维码已过期&amp;quot;,
+successTips = &amp;quot;扫码成功&amp;quot;,
+retryTips = &amp;quot;重试&amp;quot;,
+failedTips = &amp;quot;网络出错，请重试&amp;quot;,
+qrcodeSize = {
+height: 240,
+width: 240
+},
+containerSize = {
+height: 300,
+width: 300
+},
+} = options
+// mount 二维码
+const mountNode = mount
+let qrcodeNode = document.getElementById(mountNode);
+let qrcodeWrapper;
+let needGenerate = false;
+if (!qrcodeNode) {
+qrcodeNode = document.createElement('div');
+qrcodeNode.id = mountNode;
+qrcodeNode.style = `z-index: 65535;position: fixed;background: #fff;width: ${containerSize.width}px;height: ${containerSize.height}px;left: 50%;margin-left: -${containerSize.width / 2}px;display: flex;justify-content: center;align-items: center;top: 50%;margin-top: -${containerSize.height / 2}px;border: 1px solid #ccc;`;
+document.getElementsByTagName('body')[0].appendChild(qrcodeNode);
+needGenerate = true;
+} else {
+qrcodeNode.style = 'position:relative';
+}
+// 创建 &amp;lt;style&amp;gt;
+const styleNode = document.createElement('style'); const
+style = '#authing__retry a:hover{outline:0px;text-decoration:none;}#authing__spinner{position:absolute;left:50%;margin-left:-6px;}.spinner{margin:100px auto;width:20px;height:20px;position:relative}.container1&amp;gt;div,.container2&amp;gt;div,.container3&amp;gt;div{width:6px;height:6px;background-color:#00a1ea;border-radius:100%;position:absolute;-webkit-animation:bouncedelay 1.2s infinite ease-in-out;animation:bouncedelay 1.2s infinite ease-in-out;-webkit-animation-fill-mode:both;animation-fill-mode:both}.spinner .spinner-container{position:absolute;width:100%;height:100%}.container2{-webkit-transform:rotateZ(45deg);transform:rotateZ(45deg)}.container3{-webkit-transform:rotateZ(90deg);transform:rotateZ(90deg)}.circle1{top:0;left:0}.circle2{top:0;right:0}.circle3{right:0;bottom:0}.circle4{left:0;bottom:0}.container2 .circle1{-webkit-animation-delay:-1.1s;animation-delay:-1.1s}.container3 .circle1{-webkit-animation-delay:-1.0s;animation-delay:-1.0s}.container1 .circle2{-webkit-animation-delay:-0.9s;animation-delay:-0.9s}.container2 .circle2{-webkit-animation-delay:-0.8s;animation-delay:-0.8s}.container3 .circle2{-webkit-animation-delay:-0.7s;animation-delay:-0.7s}.container1 .circle3{-webkit-animation-delay:-0.6s;animation-delay:-0.6s}.container2 .circle3{-webkit-animation-delay:-0.5s;animation-delay:-0.5s}.container3 .circle3{-webkit-animation-delay:-0.4s;animation-delay:-0.4s}.container1 .circle4{-webkit-animation-delay:-0.3s;animation-delay:-0.3s}.container2 .circle4{-webkit-animation-delay:-0.2s;animation-delay:-0.2s}.container3 .circle4{-webkit-animation-delay:-0.1s;animation-delay:-0.1s}@-webkit-keyframes bouncedelay{0%,80%,100%{-webkit-transform:scale(0.0)}40%{-webkit-transform:scale(1.0)}}@keyframes bouncedelay{0%,80%,100%{transform:scale(0.0);-webkit-transform:scale(0.0)}40%{transform:scale(1.0);-webkit-transform:scale(1.0)}}';
+styleNode.type = 'text/css';
+if (styleNode.styleSheet) {
+styleNode.styleSheet.cssText = style;
+} else {
+styleNode.innerHTML = style;
+}
+document.getElementsByTagName('head')[0].appendChild(styleNode);
+// 一些显示事件
+const loading = () =&amp;gt; {
+qrcodeNode.innerHTML = '&amp;lt;div id=&amp;quot;authing__spinner&amp;quot; class=&amp;quot;spinner&amp;quot;&amp;gt;&amp;lt;div class=&amp;quot;spinner-container container1&amp;quot;&amp;gt;&amp;lt;div class=&amp;quot;circle1&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;div class=&amp;quot;circle2&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;div class=&amp;quot;circle3&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;div class=&amp;quot;circle4&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;div class=&amp;quot;spinner-container container2&amp;quot;&amp;gt;&amp;lt;div class=&amp;quot;circle1&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;div class=&amp;quot;circle2&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;div class=&amp;quot;circle3&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;div class=&amp;quot;circle4&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;div class=&amp;quot;spinner-container container3&amp;quot;&amp;gt;&amp;lt;div class=&amp;quot;circle1&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;div class=&amp;quot;circle2&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;div class=&amp;quot;circle3&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;div class=&amp;quot;circle4&amp;quot;&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;/div&amp;gt;&amp;lt;/div&amp;gt;';
+};
+const unloading = () =&amp;gt; {
+const child = document.getElementById('authing__spinner');
+qrcodeNode.removeChild(child);
+};
+const genTip = (text) =&amp;gt; {
+const tip = document.createElement('span');
+tip.class = 'authing__heading-subtitle';
+if (!needGenerate) {
+tip.style = 'display: block;font-weight: 400;font-size: 15px;color: #888;ine-height: 48px;';
+} else {
+tip.style = 'display: block;font-weight: 400;font-size: 12px;color: #888;';
+}
+tip.innerHTML = text;
+return tip;
+};
+const genImage = (src) =&amp;gt; {
+const qrcodeImage = document.createElement('img');
+qrcodeImage.class = 'authing__qrcode';
+qrcodeImage.src = src;
+qrcodeImage.width = qrcodeSize.width;
+qrcodeImage.height = qrcodeSize.height;
+return qrcodeImage;
+};
+const genShadow = (text, aOnClick, shadowAId) =&amp;gt; {
+let shadowId = 'authing__retry'
+if (document.getElementById(shadowId)) {
+document.getElementById(shadowId).remove()
+}
+const shadow = document.createElement('div');
+shadow.id = shadowId;
+shadow.style = `text-align:center;width: ${qrcodeSize.width}px;height: ${qrcodeSize.height}px;position: absolute;left: 50%;top: 0px;margin-left: -${qrcodeSize.width / 2}px;background-color: rgba(0,0,0, 0.5);line-height:${qrcodeSize.height}px;color:#fff;font-weight:600;`;
+const shadowA = document.createElement('a');
+shadowA.innerHTML = text;
+shadowA.style = 'color:#fff;border-bottom: 1px solid #fff;cursor: pointer;';
+shadowA.onclick = aOnClick;
+shadowA.id = shadowAId;
+shadow.appendChild(shadowA);
+return shadow;
+};
+const displayScannedUser = (nickname, photo) =&amp;gt; {
+let shadowId = 'authing__retry'
+if (document.getElementById(shadowId)) {
+document.getElementById(shadowId).remove()
+}
+const shadow = document.createElement('div');
+shadow.style = `text-align:center;width: ${qrcodeSize.width}px;height: ${qrcodeSize.height}px;position: absolute;left: 50%;top: 0px;margin-left: -${qrcodeSize.width / 2}px;line-height:${qrcodeSize.height}px;color:#fff;font-weight:600;display: flex;
+align-items: center; /*垂直居中*/
+justify-content: center; /*水平居中*/`;
+shadow.id = shadowId;
+const img = document.createElement('img');
+img.id = 'authing__scanned-user';
+img.src = photo
+img.style = &amp;quot;width: 100px; height: 100px&amp;quot;
+shadow.appendChild(img);
+return shadow;
+};
+function genRetry(qrcodeElm, tipText, retryId) {
+const tip = genTip(tipText);
+qrcodeWrapper = document.createElement('div');
+qrcodeWrapper.id = 'authing__qrcode-wrapper';
+qrcodeWrapper.style = 'text-align: center;position: relative;';
+// TODO: 这里换一个二维码
+const qrcodeImage = genImage('https://usercontents.authing.cn/0ab3a1bf19c0d7106673e494d532f91a.png');
+if (!needGenerate) {
+qrcodeImage.style = 'margin-top: 12px;';
+} else {
+qrcodeImage.style = 'margin-top: 16px;';
+}
+qrcodeImage.onload = () =&amp;gt; {
+unloading();
+};
+const shadow = genShadow(retryTips, () =&amp;gt; {
+start();
+}, retryId || '__authing_retry_btn');
+qrcodeWrapper.appendChild(qrcodeImage);
+qrcodeWrapper.appendChild(shadow);
+qrcodeWrapper.appendChild(tip);
+qrcodeElm.appendChild(qrcodeWrapper);
+}
+let start = () =&amp;gt; {
+loading();
+geneQRCode().then((res) =&amp;gt; {
+if (res.code !== 200) {
+genRetry(qrcodeNode, res.message);
+if (onQRCodeLoadFaild) {
+onQRCodeLoadFaild(res);
+}
+} else {
+const { qrcodeId, qrcodeUrl } = res.data
+if (onQRCodeLoad) {
+onQRCodeLoad(qrcode);
+}
+if (qrcodeNode) {
+qrcodeWrapper = document.createElement('div');
+qrcodeWrapper.id = 'authing__qrcode-wrapper';
+qrcodeWrapper.style = 'text-align: center;position: relative;';
+const qrcodeImage = genImage(qrcodeUrl);
+qrcodeImage.onload = () =&amp;gt; {
+unloading();
+if (onQRCodeShow) {
+onQRCodeShow({
+qrcodeId,
+qrcodeUrl
+});
+}
+// 需要对用户的 onSuccess, onScanned, onExpired, onCancel 进行加工从而在页面上展示相关提示
+let decoratedOnSuccess = function (data) {
+const shadow = genShadow(successTips, null, '__authing_success_tip');
+qrcodeWrapper.appendChild(shadow);
+if (onSuccess) {
+onSuccess(data)
+}
+}
+let decoratedOnScanned = function (userInfo) {
+const shadow = displayScannedUser(
+userInfo.nickname,
+userInfo.photo
+)
+qrcodeWrapper.appendChild(shadow);
+if (onScanned) {
+onScanned(userInfo)
+}
+}
+let decoratedOnCancel = function () {
+const shadow = genShadow(canceledTips, null, '__authing_success_tip');
+qrcodeWrapper.appendChild(shadow);
+if (onCancel) {
+onCancel()
+}
+}
+let decoratedOnExpired = function () {
+const shadow = genShadow(expiredTips, null, '__authing_success_tip');
+qrcodeWrapper.appendChild(shadow);
+if (onExpired) {
+onExpired()
+}
+}
+let decoratedOnError = function (data) {
+if (onError) {
+onError(data)
+}
+}
+// 开始轮询
+startPollingQRCodeStatus({
+qrcodeId,
+interval,
+onPollingStart,
+onResult,
+onScanned: decoratedOnScanned,
+onExpired: decoratedOnExpired,
+onSuccess: decoratedOnSuccess,
+onCancel: decoratedOnCancel,
+onError: decoratedOnError
+})
+};
+const tip = genTip(tips);
+qrcodeWrapper.appendChild(qrcodeImage);
+qrcodeWrapper.appendChild(tip);
+qrcodeNode.appendChild(qrcodeWrapper);
+}
+}
+}).catch((error) =&amp;gt; {
+genRetry(qrcodeNode, failedTips);
+if (onQRCodeLoadFaild) {
+onQRCodeLoadFaild(error);
+}
+});
+};
+start();
+}
+&lt;/code>&lt;/pre>&lt;p>有几点说明一下：&lt;/p>
+&lt;ul>
+&lt;li>调用 startPollingQRCodeStatus 的时候，注册的 onScanned 回调函数用的是 decoratedOnScanned&lt;/li>
+&lt;/ul>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">startPollingQRCodeStatus({
+qrcodeId,
+interval,
+onPollingStart,
+onResult,
+onScanned: decoratedOnScanned,
+onExpired: decoratedOnExpired,
+onSuccess: decoratedOnSuccess,
+onCancel: decoratedOnCancel,
+onError: decoratedOnError
+})
+&lt;/code>&lt;/pre>&lt;p>decoratedOnScanned 函数的作用是：先在扫码登录组件中展示用户头像，然后再回调用户注册的 onScanned。这样就即实现了 UI 展示，又没有影响正常的回调业务逻辑。&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">let decoratedOnScanned = function (userInfo) {
+const shadow = displayScannedUser(
+userInfo.nickname,
+userInfo.photo
+)
+qrcodeWrapper.appendChild(shadow);
+if (onScanned) {
+onScanned(userInfo)
+}
+}
+&lt;/code>&lt;/pre>&lt;p>现在我们所有的函数就封装好了，创建一个 html 文件看下效果：&lt;/p>
+&lt;pre>&lt;code class="language-markup" data-lang="markup">&amp;lt;!DOCTYPE html&amp;gt;
+&amp;lt;html lang=&amp;quot;en&amp;quot;&amp;gt;
+&amp;lt;head&amp;gt;
+&amp;lt;meta charset=&amp;quot;UTF-8&amp;quot;&amp;gt;
+&amp;lt;meta name=&amp;quot;viewport&amp;quot; content=&amp;quot;width=device-width, initial-scale=1.0&amp;quot;&amp;gt;
+&amp;lt;meta http-equiv=&amp;quot;X-UA-Compatible&amp;quot; content=&amp;quot;ie=edge&amp;quot;&amp;gt;
+&amp;lt;title&amp;gt;扫码登录 Demo&amp;lt;/title&amp;gt;
+&amp;lt;/head&amp;gt;
+&amp;lt;body&amp;gt;
+&amp;lt;/body&amp;gt;
+&amp;lt;script src=&amp;quot;https://unpkg.com/axios/dist/axios.min.js&amp;quot;&amp;gt;&amp;lt;/script&amp;gt;
+&amp;lt;script src=&amp;quot;./sdk/index.js&amp;quot;&amp;gt;&amp;lt;/script&amp;gt;
+&amp;lt;script&amp;gt;
+startAppAuthScanning({
+onSuccess(userInfo) {
+console.log(userInfo)
+}
+})
+&amp;lt;/script&amp;gt;
+&amp;lt;/html&amp;gt;
+&lt;/code>&lt;/pre>&lt;p>&lt;img src="https://gitee.com/guoyongsoft/image/raw/master/img/20210330135540.png" alt="img">&lt;/p>
+&lt;blockquote>
+&lt;p>本文的所有代码都在这里了：https://github.com/liaochangjiang/scan-qrcode-demo&lt;/p>
+&lt;/blockquote>
+&lt;h2 id="heading-1">&lt;/h2>
+&lt;h2 id="扫码登录实战系列-4-总结">扫码登录实战系列 4: 总结&lt;/h2>
+&lt;p>本文是介绍性质的，所以存在很多可改进点。&lt;/p>
+&lt;p>比如说安全性：目前是直接在二维码查询接口返回完整用户信息的，而二维码状态查询接口没有做鉴权，这存在安全隐患，更好的做法是返回一个 ticket，使用此 ticket 换取用户信息。&lt;/p>
+&lt;p>还有一点在第二讲提到的：二维码保存的文本信息可以是一个 url，可以通过此 ticket 获取二维码 ID。这有一个好处，比如说使用其他app扫描此二维码时，会访问该url地址，这个时候你就可以做一道重定向到其他你想让用户看到的地址。比如通过 UA 实现跳转 app store 引导用户下载。&lt;/p>
+&lt;p>另外，本文的所有代码都在这里了：https://github.com/liaochangjiang/scan-qrcode-demo&lt;/p>
+&lt;p>最后说明一下，这也算是打个小广告了，本文的所有内容都来自于我实际工作的总结，在这里也是把内容抽象沉淀出来，分享给所有的开发者。我就职于一家国内领先的 IDaaS 公司：&lt;a href="https://authing.cn/">https://authing.cn&lt;/a>，APP 扫码登录也是我们最近在开发的一个功能，除了此系列文章所介绍的基础内容外，我们还有更多 feature 和可自定义的配置：&lt;/p>
+&lt;p>&lt;img src="https://gitee.com/guoyongsoft/image/raw/master/img/20210330135540.png" alt="img">&lt;/p>
+&lt;p>可以自定义二维码、ticket 有效时间，可以自己决定是否要在二维码状态查询接口返回完整用户信息，以及是否运行在浏览器用 ticket 换用户信息。&lt;/p></content></entry></feed>
